@@ -271,8 +271,10 @@
               el.classList.contains('step--completed')
             ) return;
 
-            // Ignore completion checkboxes that belong to the detail view itself (prevent double injection)
-            if (el.classList.contains('checkbox--todo') && el.closest('.recordable--todo')) {
+            // If the element is INSIDE a detail view container but is NOT a subtask, ignore it.
+            // This firmly prevents duplicate icons on the detail page when multiple selectors match inner wrappers.
+            const recordable = el.closest('.recordable--todo, .recordable--kanban-card');
+            if (recordable && el !== recordable && !el.classList.contains('step') && !el.classList.contains('step__item')) {
               return;
             }
 
@@ -361,6 +363,11 @@
         permaTitle.style.display = 'flex';
         permaTitle.style.alignItems = 'center';
         permaTitle.style.gap = '12px';
+        
+        // Scale up the icon to better match the large H1 text
+        btn.style.transform = 'scale(1.35)';
+        btn.style.transformOrigin = 'left center';
+        
         return appendBtn(permaTitle);
       }
       return false; // Did not inject yet, turbo frame is loading
