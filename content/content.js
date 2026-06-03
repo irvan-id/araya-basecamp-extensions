@@ -329,6 +329,13 @@
       openModal(todoEl);
     });
 
+    const appendBtn = (container) => {
+      if (!container) return false;
+      if (container.querySelector(':scope > .bctl-timer-btn')) return true;
+      container.appendChild(btn);
+      return true;
+    };
+
     // 1. Detail View Main To-do Header or Kanban Card
     if (todoEl.classList.contains('recordable--todo') || todoEl.classList.contains('recordable--kanban-card')) {
       if (todoEl.classList.contains('recordable--kanban-card')) {
@@ -337,16 +344,14 @@
           permaTitle.style.display = 'flex';
           permaTitle.style.alignItems = 'center';
           permaTitle.style.gap = '12px';
-          permaTitle.appendChild(btn);
-          return true; // Successfully injected
+          return appendBtn(permaTitle);
         }
         return false; // Did not inject yet, turbo frame is loading
       }
       
       const permaFlex = todoEl.querySelector('.perma-header__content .flex.items-center');
       if (permaFlex) {
-        permaFlex.appendChild(btn);
-        return true;
+        return appendBtn(permaFlex);
       }
       return false; // Did not inject yet
     }
@@ -355,16 +360,11 @@
     if (todoEl.classList.contains('step') || todoEl.classList.contains('step__item')) {
       const taskDetails = todoEl.querySelector('.task-details');
       if (taskDetails) {
-        taskDetails.appendChild(btn);
+        return appendBtn(taskDetails);
       } else {
         const stepContent = todoEl.querySelector('.step__content, .step__text-container') || todoEl;
-        if (stepContent !== todoEl) {
-          stepContent.appendChild(btn);
-        } else {
-          todoEl.appendChild(btn);
-        }
+        return appendBtn(stepContent);
       }
-      return true;
     }
 
     // 3. Kanban Card on Board View
@@ -380,29 +380,19 @@
       btn.style.marginLeft = '8px';
       btn.style.zIndex = '10';
       
-      if (targetContainer !== todoEl) {
-        targetContainer.appendChild(btn);
-      } else {
-        todoEl.appendChild(btn);
-      }
-      return true;
+      return appendBtn(targetContainer);
     }
 
     // 4. Regular To-Do list item
     // Append — try to put it at the end of the task-details container so it aligns to the right
     const taskDetails = todoEl.querySelector('.task-details');
     if (taskDetails) {
-      taskDetails.appendChild(btn);
+      return appendBtn(taskDetails);
     } else {
       const textContainer =
         todoEl.querySelector('.checkbox__content, .todo__content, .todo_name, .todo__name') || todoEl;
-      if (textContainer !== todoEl) {
-        textContainer.appendChild(btn);
-      } else {
-        todoEl.appendChild(btn);
-      }
+      return appendBtn(textContainer);
     }
-    return true;
   }
 
   /** Create a small hours badge element. */
