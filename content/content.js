@@ -1,0 +1,1247 @@
+/**
+ * ============================================================
+ *  Araya Basecamp Extensions — Content Script
+ * ============================================================
+ *  Injected into Basecamp pages. Adds time-tracking timer
+ *  buttons next to to-do items, with a modal for manual entry
+ *  or start/stop stopwatch logging.
+ *
+ *  All DOM elements use the `.bctl-` CSS class prefix.
+ * ============================================================
+ */
+
+(function () {
+  'use strict';
+
+  // Prevent double-initialisation (e.g. if injected twice)
+  if (window.__bctlInitialised) return;
+  window.__bctlInitialised = true;
+
+  /* --------------------------------------------------------
+     Constants
+     -------------------------------------------------------- */
+
+  const STORAGE_KEYS = {
+    USER_NAME: 'bctl_user_name',
+    TIMER_STATE: 'bctl_timer_state',
+    TIME_CACHE: 'bctl_time_cache',
+  };
+
+  const DEBOUNCE_MS = 300;
+
+  /** Ordered list of selectors to try when locating to-do items. */
+  const TODO_SELECTORS = [
+    '.todo',
+    '[data-behavior="todo_item"]',
+    '.recording--todo',
+    '.recording',
+    '.todos .todo_name',
+    '.checkbox--todo',
+  ];
+
+  /** Selectors to try for the current user's display name. */
+  const USER_SELECTORS = [
+    '[data-current-person]',
+    '.nav-user',
+    '#person_avatar',
+    '.avatar--current-user',
+    '.jump_menu__current-user',
+  ];
+
+  /* --------------------------------------------------------
+     State
+     -------------------------------------------------------- */
+
+  /** Cached user display name. */
+  let currentUserName = '';
+  
+  /** Admin status. */
+  let currentIsAdmin = false;
+
+  /** In-memory cache of logged hours keyed by task URL. */
+  let timeCache = {};
+
+  /** Currently active timer info (or null). */
+  let activeTimer = null;
+
+  /** Remember the last selected tab mode ('manual' or 'timer') */
+  let lastSelectedMode = 'manual';
+
+  /** Interval id for the running stopwatch UI update. */
+  let timerIntervalId = null;
+
+  /* --------------------------------------------------------
+     1. Initialisation
+     -------------------------------------------------------- */
+
+  async function init() {
+    try {
+      await loadCachedData();
+      detectUserProfile();
+      injectProjectButton();
+      injectButtons();
+      startObserver();
+      listenForTurboNavigation();
+      restoreRunningTimer();
+      ensureToastContainer();
+    } catch (err) {
+      console.error('[BCTL] Init error:', err);
+    }
+  }
+
+  /** Load persisted data from chrome.storage.local. */
+  async function loadCachedData() {
+    try {
+      const data = await chrome.storage.local.get([
+        STORAGE_KEYS.USER_NAME,
+        STORAGE_KEYS.TIMER_STATE,
+        STORAGE_KEYS.TIME_CACHE,
+      ]);
+      if (data[STORAGE_KEYS.USER_NAME]) {
+        currentUserName = data[STORAGE_KEYS.USER_NAME];
+      }
+      if (data[STORAGE_KEYS.TIME_CACHE]) {
+        timeCache = data[STORAGE_KEYS.TIME_CACHE];
+      }
+      if (data[STORAGE_KEYS.TIMER_STATE]) {
+        activeTimer = data[STORAGE_KEYS.TIMER_STATE];
+      }
+    } catch (err) {
+      console.warn('[BCTL] Could not load cached data:', err);
+    }
+  }
+
+  /* --------------------------------------------------------
+     2. Profile Detection
+     -------------------------------------------------------- */
+
+  function detectUserProfile() {
+    try {
+      // Strategy 1 — known selectors
+      for (const sel of USER_SELECTORS) {
+        const el = document.querySelector(sel);
+        if (el) {
+          const name =
+            el.getAttribute('data-current-person') ||
+            el.getAttribute('title') ||
+            el.getAttribute('alt') ||
+            el.getAttribute('aria-label') ||
+            el.textContent.trim();
+          if (name) {
+            setUserName(name);
+            return;
+          }
+        }
+      }
+
+      // Strategy 2 — <meta> tags that Basecamp sometimes renders
+      const metaName = document.querySelector(
+        'meta[name="current-person-name"], meta[name="current-user"]'
+      );
+      if (metaName) {
+        const content = metaName.getAttribute('content');
+        if (content) {
+          setUserName(content);
+          return;
+        }
+      }
+
+      // Strategy 3 — account menu dropdown containing initials avatar
+      const initialsEl = document.querySelector(
+        '.nav__account-name, .avatar-initials, [data-role="current-user-name"]'
+      );
+      if (initialsEl && initialsEl.textContent.trim()) {
+        setUserName(initialsEl.textContent.trim());
+        return;
+      }
+
+      // Fallback — use whatever was previously stored
+      if (!currentUserName) {
+        currentUserName = 'Unknown User';
+      }
+      
+      currentIsAdmin = document.querySelector('meta[name="current-person-admin"][content="true"]') !== null;
+    } catch (err) {
+      console.warn('[BCTL] Profile detection error:', err);
+    }
+  }
+
+  /** Persist the detected user name. */
+  function setUserName(name) {
+    currentUserName = name;
+    chrome.storage.local
+      .set({ [STORAGE_KEYS.USER_NAME]: name })
+      .catch(() => {});
+  }
+
+  /* --------------------------------------------------------
+     3. MutationObserver
+     -------------------------------------------------------- */
+
+  let observerDebounceTimer = null;
+
+  function startObserver() {
+    const observer = new MutationObserver(() => {
+      clearTimeout(observerDebounceTimer);
+      observerDebounceTimer = setTimeout(() => {
+        injectProjectButton();
+        injectButtons();
+      }, DEBOUNCE_MS);
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  /** Handle Turbo / Turbolinks page transitions. */
+  function listenForTurboNavigation() {
+    const events = [
+      'turbo:load',
+      'turbolinks:load',
+      'turbo:render',
+      'turbo:frame-load',
+    ];
+    events.forEach((evt) => {
+      document.addEventListener(evt, () => {
+        detectUserProfile();
+        injectProjectButton();
+        injectButtons();
+      });
+    });
+  }
+
+  /* --------------------------------------------------------
+     4. Timer Button Injection
+     -------------------------------------------------------- */
+
+  /**
+   * Scan the DOM for to-do items and inject a timer button
+   * next to each one that hasn't been augmented yet.
+   */
+  function injectButtons() {
+    const todos = findTodoElements();
+    todos.forEach((todoEl) => {
+      try {
+        if (todoEl.querySelector('.bctl-timer-btn')) return; // already injected
+        injectTimerButton(todoEl);
+      } catch (err) {
+        console.warn('[BCTL] Button injection error:', err);
+      }
+    });
+  }
+
+  /**
+   * Walk through TODO_SELECTORS and collect all matching
+   * elements (de-duplicated).
+   */
+  function findTodoElements() {
+    const seen = new Set();
+    const results = [];
+
+    for (const sel of TODO_SELECTORS) {
+      try {
+        document.querySelectorAll(sel).forEach((el) => {
+          if (!seen.has(el)) {
+            seen.add(el);
+            results.push(el);
+          }
+        });
+      } catch (_) {
+        // invalid selector — skip
+      }
+    }
+
+    // Fallback: generic pattern — checkbox + label inside a list
+    if (results.length === 0) {
+      document
+        .querySelectorAll(
+          'ul li input[type="checkbox"], ol li input[type="checkbox"]'
+        )
+        .forEach((cb) => {
+          const li = cb.closest('li');
+          if (li && !seen.has(li)) {
+            seen.add(li);
+            results.push(li);
+          }
+        });
+    }
+
+    return results;
+  }
+
+  /**
+   * Create and append a timer button to a to-do element.
+   */
+  function injectTimerButton(todoEl) {
+    const btn = document.createElement('button');
+    btn.className = 'bctl-timer-btn';
+    btn.type = 'button';
+    btn.setAttribute('aria-label', 'Log time');
+    btn.title = 'Log time';
+
+    // Icon
+    const icon = document.createElement('span');
+    icon.className = 'bctl-btn-icon';
+    icon.textContent = '⏱️';
+    btn.appendChild(icon);
+
+    // Show cached hours badge if available
+    const taskUrl = getTaskUrl(todoEl);
+    const cachedHours = timeCache[taskUrl];
+    if (cachedHours && cachedHours > 0) {
+      const badge = createBadge(cachedHours);
+      btn.appendChild(badge);
+    }
+
+    // If this task has the active timer, mark the button
+    if (activeTimer && activeTimer.taskUrl === taskUrl) {
+      markButtonAsActive(btn);
+    }
+
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openModal(todoEl);
+    });
+
+    // Append — try to put it after the label text
+    const textContainer =
+      todoEl.querySelector('.todo_name, .todo__name, label, a') || todoEl;
+    if (textContainer !== todoEl && textContainer.parentNode === todoEl) {
+      textContainer.after(btn);
+    } else {
+      todoEl.appendChild(btn);
+    }
+  }
+
+  /** Create a small hours badge element. */
+  function createBadge(hours) {
+    const badge = document.createElement('span');
+    badge.className = 'bctl-badge bctl-badge--has-time';
+    badge.textContent = `${parseFloat(hours.toFixed(2))}h`;
+    return badge;
+  }
+
+  /* --------------------------------------------------------
+     5. Context Extraction Helpers
+     -------------------------------------------------------- */
+
+  /**
+   * Extract the project name from breadcrumbs, headers or title.
+   */
+  function getProjectName() {
+    // Breadcrumb selectors used by Basecamp 3/4
+    const breadcrumbSelectors = [
+      '.breadcrumb a',
+      '.breadcrumbs a',
+      '.project-header__name',
+      '.project__name',
+      '[data-role="project-name"]',
+      'h1.project-name',
+      '.perma-toolbar a[href*="/projects/"]',
+    ];
+
+    for (const sel of breadcrumbSelectors) {
+      try {
+        const el = document.querySelector(sel);
+        if (el && el.textContent.trim()) {
+          return el.textContent.trim();
+        }
+      } catch (_) {}
+    }
+
+    // Last resort — pull from <title> (format: "Item · Project · Basecamp")
+    const titleParts = document.title.split('·').map((s) => s.trim());
+    if (titleParts.length >= 2) {
+      return titleParts[titleParts.length - 2]; // second-to-last is usually the project
+    }
+    return document.title || 'Unknown Project';
+  }
+
+  /**
+   * Get the text content (name) of a to-do item.
+   */
+  function getTaskName(todoEl) {
+    // Prefer the inner label / link text
+    const textEl = todoEl.querySelector(
+      '.todo_name, .todo__name, .todo__content, label, a'
+    );
+    const raw = textEl
+      ? textEl.textContent.trim()
+      : todoEl.textContent.trim();
+    // Truncate if excessively long
+    return raw.length > 200 ? raw.slice(0, 200) + '…' : raw;
+  }
+
+  /** Get the current page URL. */
+  function getCurrentUrl() {
+    return window.location.href;
+  }
+
+  /**
+   * Derive a stable-ish key for a specific task. We combine the
+   * page URL with the task name so each todo has a unique key.
+   */
+  function getTaskUrl(todoEl) {
+    // Check for a dedicated permalink first
+    const link = todoEl.querySelector('a[href]');
+    if (link && link.href) return link.href;
+    return getCurrentUrl() + '#' + encodeURIComponent(getTaskName(todoEl));
+  }
+
+  /* --------------------------------------------------------
+     6. Time Entry Modal
+     -------------------------------------------------------- */
+
+  /** Reference to the currently open modal overlay (if any). */
+  let currentOverlay = null;
+
+  /**
+   * Build and show the time entry modal.
+   */
+  function openModal(todoEl) {
+    // Close existing modal if any
+    closeModal();
+
+    const taskName = getTaskName(todoEl);
+    const projectName = getProjectName();
+    const taskUrl = getTaskUrl(todoEl);
+
+    // Overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'bctl-modal-overlay';
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeModal();
+    });
+
+    // Modal box
+    const modal = document.createElement('div');
+    modal.className = 'bctl-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Log time');
+
+    // ── Header ──
+    const header = document.createElement('div');
+    header.className = 'bctl-modal-header';
+
+    const title = document.createElement('h2');
+    title.className = 'bctl-modal-title';
+    title.innerHTML =
+      '<span class="bctl-modal-title-icon">⏱️</span> Log Time';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'bctl-modal-close';
+    closeBtn.type = 'button';
+    closeBtn.innerHTML = '✕';
+    closeBtn.title = 'Close';
+    closeBtn.setAttribute('aria-label', 'Close');
+    closeBtn.addEventListener('click', closeModal);
+
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    modal.appendChild(header);
+
+    // ── Body ──
+    const body = document.createElement('div');
+    body.className = 'bctl-modal-body';
+
+    // Task info card
+    body.appendChild(
+      buildTaskInfoCard(taskName, projectName)
+    );
+
+    // Mode tabs (Manual vs Timer)
+    const { tabs, manualSection, timerSection } = buildModeTabs();
+    body.appendChild(tabs);
+
+    // ── Manual entry section ──
+    const hoursInput = document.createElement('input');
+    hoursInput.type = 'number';
+    hoursInput.className = 'bctl-input';
+    hoursInput.min = '0';
+    hoursInput.step = '0.25';
+    hoursInput.placeholder = '0.00';
+    hoursInput.value = '';
+
+    const notesManual = document.createElement('textarea');
+    notesManual.className = 'bctl-textarea';
+    notesManual.placeholder = 'What did you work on?';
+
+    manualSection.appendChild(buildFormGroup('Hours', hoursInput));
+    manualSection.appendChild(buildFormGroup('Notes', notesManual));
+    body.appendChild(manualSection);
+
+    // ── Timer section ──
+    const timerDisplay = document.createElement('div');
+    timerDisplay.className = 'bctl-timer-display';
+
+    const timerTime = document.createElement('div');
+    timerTime.className = 'bctl-timer-time';
+    timerTime.id = 'bctl-modal-timer';
+    timerTime.innerHTML = formatTimeHTML(0);
+
+    const timerHint = document.createElement('div');
+    timerHint.className = 'bctl-timer-hint';
+    timerHint.textContent = 'Click Start to begin tracking';
+
+    const timerBtn = document.createElement('button');
+    timerBtn.type = 'button';
+    timerBtn.className = 'bctl-btn bctl-btn-timer';
+    timerBtn.innerHTML = '▶ Start';
+
+    // If this task already has an active timer, show running state
+    if (activeTimer && activeTimer.taskUrl === taskUrl) {
+      const elapsed = getElapsedSeconds();
+      timerTime.innerHTML = formatTimeHTML(elapsed);
+      timerTime.classList.add('bctl-running');
+      timerBtn.classList.add('bctl-active');
+      timerBtn.innerHTML = '■ Stop';
+      timerHint.textContent = 'Timer is running…';
+      startModalTimerDisplay(timerTime);
+    }
+
+    timerBtn.addEventListener('click', () => {
+      if (activeTimer && activeTimer.taskUrl === taskUrl) {
+        // Stop the timer
+        const elapsed = getElapsedSeconds();
+        stopTimer();
+        timerTime.classList.remove('bctl-running');
+        timerBtn.classList.remove('bctl-active');
+        timerBtn.innerHTML = '▶ Start';
+        timerHint.textContent = `Stopped at ${formatTime(elapsed)}`;
+        hoursInput.value = (elapsed / 3600).toFixed(2);
+      } else {
+        // Only one timer at a time
+        if (activeTimer) {
+          showToast('Another timer is already running. Stop it first.', 'error');
+          return;
+        }
+        startTimer(taskUrl, taskName, projectName);
+        timerTime.classList.add('bctl-running');
+        timerBtn.classList.add('bctl-active');
+        timerBtn.innerHTML = '■ Stop';
+        timerHint.textContent = 'Timer is running…';
+        startModalTimerDisplay(timerTime);
+        updateAllTimerButtons();
+      }
+    });
+
+    const notesTimer = document.createElement('textarea');
+    notesTimer.className = 'bctl-textarea';
+    notesTimer.placeholder = 'What did you work on?';
+
+    timerDisplay.appendChild(timerTime);
+    timerDisplay.appendChild(timerHint);
+    timerDisplay.appendChild(timerBtn);
+    timerSection.appendChild(timerDisplay);
+    timerSection.appendChild(buildFormGroup('Notes', notesTimer));
+    body.appendChild(timerSection);
+
+    // ── Footer ──
+    const footer = document.createElement('div');
+    footer.className = 'bctl-modal-footer';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'bctl-btn bctl-btn-secondary';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', closeModal);
+
+    const saveBtn = document.createElement('button');
+    saveBtn.type = 'button';
+    saveBtn.className = 'bctl-btn bctl-btn-primary';
+    saveBtn.textContent = 'Save';
+    saveBtn.addEventListener('click', async () => {
+      const hours = parseFloat(hoursInput.value);
+      if (!hours || hours <= 0) {
+        showToast('Please enter hours greater than 0.', 'error');
+        return;
+      }
+      const notes =
+        (manualSection.style.display !== 'none'
+          ? notesManual.value
+          : notesTimer.value
+        ).trim();
+
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<span class="bctl-spinner"></span> Saving…';
+
+      const success = await logTime({
+        user: currentUserName,
+        project: projectName,
+        task: taskName,
+        hours,
+        notes,
+        url: taskUrl,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (success) {
+        updateTimeCache(taskUrl, hours);
+        refreshBadge(todoEl, taskUrl);
+        showToast(`Logged ${hours}h for "${truncate(taskName, 40)}"`, 'success');
+        closeModal();
+      } else {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+        showToast('Failed to save. Please try again.', 'error');
+      }
+    });
+
+    footer.appendChild(cancelBtn);
+    footer.appendChild(saveBtn);
+    body.appendChild(footer);
+
+    modal.appendChild(body);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    currentOverlay = overlay;
+
+    // Trap focus & keyboard handling
+    handleModalKeyboard(overlay, closeBtn);
+
+    // Tab-switch helper exposed to timer button handler
+    function switchTab(mode) {
+      tabs.querySelectorAll('.bctl-mode-tab').forEach((t) => {
+        t.classList.toggle('bctl-active', t.dataset.mode === mode);
+      });
+      manualSection.style.display = mode === 'manual' ? '' : 'none';
+      timerSection.style.display = mode === 'timer' ? '' : 'none';
+      lastSelectedMode = mode;
+    }
+
+    // Set initial tab based on state or active timer
+    if (activeTimer && activeTimer.taskUrl === taskUrl) {
+      switchTab('timer');
+    } else {
+      switchTab(lastSelectedMode);
+    }
+  }
+
+  /** Close and animate-out the modal. */
+  function closeModal() {
+    if (!currentOverlay) return;
+    const overlay = currentOverlay;
+    currentOverlay = null;
+    stopModalTimerDisplay();
+
+    overlay.classList.add('bctl-closing');
+    overlay.addEventListener('animationend', () => overlay.remove(), {
+      once: true,
+    });
+    // Safety fallback removal
+    setTimeout(() => {
+      if (overlay.parentNode) overlay.remove();
+    }, 400);
+  }
+
+  /* --------------------------------------------------------
+     6a. Modal Sub-builders
+     -------------------------------------------------------- */
+
+  function buildTaskInfoCard(taskName, projectName) {
+    const card = document.createElement('div');
+    card.className = 'bctl-task-info';
+
+    const projLabel = document.createElement('div');
+    projLabel.className = 'bctl-task-info-label';
+    projLabel.textContent = 'Project';
+
+    const projVal = document.createElement('div');
+    projVal.className = 'bctl-task-info-value';
+    projVal.textContent = projectName;
+
+    const divider = document.createElement('div');
+    divider.className = 'bctl-task-info-divider';
+
+    const taskLabel = document.createElement('div');
+    taskLabel.className = 'bctl-task-info-label';
+    taskLabel.textContent = 'Task';
+
+    const taskVal = document.createElement('div');
+    taskVal.className = 'bctl-task-info-value';
+    taskVal.textContent = taskName;
+
+    card.append(projLabel, projVal, divider, taskLabel, taskVal);
+    return card;
+  }
+
+  function buildModeTabs() {
+    const tabs = document.createElement('div');
+    tabs.className = 'bctl-mode-tabs';
+
+    const manualTab = document.createElement('button');
+    manualTab.type = 'button';
+    manualTab.className = 'bctl-mode-tab bctl-active';
+    manualTab.dataset.mode = 'manual';
+    manualTab.innerHTML = '✏️ Manual';
+
+    const timerTab = document.createElement('button');
+    timerTab.type = 'button';
+    timerTab.className = 'bctl-mode-tab';
+    timerTab.dataset.mode = 'timer';
+    timerTab.innerHTML = '⏱️ Timer';
+
+    const manualSection = document.createElement('div');
+    manualSection.className = 'bctl-manual-section';
+
+    const timerSection = document.createElement('div');
+    timerSection.className = 'bctl-timer-section';
+    timerSection.style.display = 'none';
+
+    manualTab.addEventListener('click', () => {
+      manualTab.classList.add('bctl-active');
+      timerTab.classList.remove('bctl-active');
+      manualSection.style.display = '';
+      timerSection.style.display = 'none';
+      lastSelectedMode = 'manual';
+    });
+
+    timerTab.addEventListener('click', () => {
+      timerTab.classList.add('bctl-active');
+      manualTab.classList.remove('bctl-active');
+      timerSection.style.display = '';
+      manualSection.style.display = 'none';
+      lastSelectedMode = 'timer';
+    });
+
+    tabs.appendChild(manualTab);
+    tabs.appendChild(timerTab);
+
+    return { tabs, manualSection, timerSection };
+  }
+
+  function buildFormGroup(labelText, inputEl) {
+    const group = document.createElement('div');
+    group.className = 'bctl-form-group';
+
+    const label = document.createElement('label');
+    label.className = 'bctl-label';
+    label.textContent = labelText;
+
+    group.appendChild(label);
+    group.appendChild(inputEl);
+    return group;
+  }
+
+  /** Keyboard handling (Escape to close, trap focus). */
+  function handleModalKeyboard(overlay) {
+    const handler = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        closeModal();
+      }
+      // Basic focus trapping
+      if (e.key === 'Tab') {
+        const focusable = overlay.querySelectorAll(
+          'button, input, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', handler, true);
+    // Clean up when overlay is removed
+    const mo = new MutationObserver(() => {
+      if (!document.body.contains(overlay)) {
+        document.removeEventListener('keydown', handler, true);
+        mo.disconnect();
+      }
+    });
+    mo.observe(document.body, { childList: true });
+  }
+
+  /* --------------------------------------------------------
+     7. Running Timer Logic
+     -------------------------------------------------------- */
+
+  /**
+   * Start a timer for a specific task. Only one timer can
+   * be active at a time; the state is persisted to storage.
+   */
+  function startTimer(taskUrl, taskName, projectName) {
+    activeTimer = {
+      taskUrl,
+      taskName,
+      projectName,
+      startedAt: Date.now(),
+      user: currentUserName,
+      pageUrl: getCurrentUrl(),
+    };
+    persistTimerState();
+  }
+
+  /** Stop the running timer. Returns elapsed seconds. */
+  function stopTimer() {
+    const elapsed = getElapsedSeconds();
+    activeTimer = null;
+    chrome.storage.local.remove(STORAGE_KEYS.TIMER_STATE).catch(() => {});
+    stopInlineTimerUpdates();
+    updateAllTimerButtons(); // clear active styles
+    return elapsed;
+  }
+
+  /** Get seconds elapsed on the active timer (0 if none). */
+  function getElapsedSeconds() {
+    if (!activeTimer) return 0;
+    return Math.floor((Date.now() - activeTimer.startedAt) / 1000);
+  }
+
+  /** Save timer state to storage for cross-page persistence. */
+  function persistTimerState() {
+    chrome.storage.local
+      .set({ [STORAGE_KEYS.TIMER_STATE]: activeTimer })
+      .catch(() => {});
+  }
+
+  /**
+   * On page load, restore a previously running timer and
+   * re-attach the inline elapsed display to the matching button.
+   */
+  function restoreRunningTimer() {
+    if (!activeTimer) return;
+    updateAllTimerButtons();
+    startInlineTimerUpdates();
+  }
+
+  /* --------------------------------------------------------
+     7a. Inline timer display on buttons
+     -------------------------------------------------------- */
+
+  let inlineTimerInterval = null;
+
+  function startInlineTimerUpdates() {
+    stopInlineTimerUpdates();
+    inlineTimerInterval = setInterval(() => {
+      updateAllTimerButtons();
+    }, 1000);
+  }
+
+  function stopInlineTimerUpdates() {
+    if (inlineTimerInterval) {
+      clearInterval(inlineTimerInterval);
+      inlineTimerInterval = null;
+    }
+  }
+
+  /**
+   * Iterate over all injected timer buttons and update their
+   * visual state (active vs. inactive, elapsed time display).
+   */
+  function updateAllTimerButtons() {
+    document.querySelectorAll('.bctl-timer-btn').forEach((btn) => {
+      const todoEl = btn.closest(TODO_SELECTORS.join(',')) || btn.parentElement;
+      if (!todoEl) return;
+      const taskUrl = getTaskUrl(todoEl);
+
+      if (activeTimer && activeTimer.taskUrl === taskUrl) {
+        markButtonAsActive(btn);
+      } else {
+        btn.classList.remove('bctl-timer-active');
+        // Remove elapsed span if present
+        const elapsed = btn.querySelector('.bctl-elapsed');
+        if (elapsed) elapsed.remove();
+      }
+    });
+  }
+
+  /** Mark a specific button as the active (running) timer button. */
+  function markButtonAsActive(btn) {
+    btn.classList.add('bctl-timer-active');
+    let elSpan = btn.querySelector('.bctl-elapsed');
+    if (!elSpan) {
+      elSpan = document.createElement('span');
+      elSpan.className = 'bctl-elapsed';
+      btn.appendChild(elSpan);
+    }
+    elSpan.textContent = formatTime(getElapsedSeconds());
+    if (!inlineTimerInterval) startInlineTimerUpdates();
+  }
+
+  /* --------------------------------------------------------
+     7b. Modal timer display
+     -------------------------------------------------------- */
+
+  let modalTimerInterval = null;
+
+  function startModalTimerDisplay(timerTimeEl) {
+    stopModalTimerDisplay();
+    modalTimerInterval = setInterval(() => {
+      if (!activeTimer) {
+        stopModalTimerDisplay();
+        return;
+      }
+      timerTimeEl.innerHTML = formatTimeHTML(getElapsedSeconds());
+    }, 500);
+  }
+
+  function stopModalTimerDisplay() {
+    if (modalTimerInterval) {
+      clearInterval(modalTimerInterval);
+      modalTimerInterval = null;
+    }
+  }
+
+  /* --------------------------------------------------------
+     8. Time Logging (background communication)
+     -------------------------------------------------------- */
+
+  /**
+   * Send the LOG_TIME message to the background service worker.
+   * Returns true on success, false on failure.
+   */
+  async function logTime(data) {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'LOG_TIME',
+        payload: data,
+      });
+      return response && response.success !== false;
+    } catch (err) {
+      console.error('[BCTL] logTime sendMessage error:', err);
+      return false;
+    }
+  }
+
+  /** Update the in-memory and stored time cache. */
+  function updateTimeCache(taskUrl, hours) {
+    const prev = timeCache[taskUrl] || 0;
+    timeCache[taskUrl] = prev + hours;
+    chrome.storage.local
+      .set({ [STORAGE_KEYS.TIME_CACHE]: timeCache })
+      .catch(() => {});
+  }
+
+  /** Refresh the hours badge on a specific to-do element. */
+  function refreshBadge(todoEl, taskUrl) {
+    const btn = todoEl.querySelector('.bctl-timer-btn');
+    if (!btn) return;
+
+    // Remove old badge
+    const oldBadge = btn.querySelector('.bctl-badge');
+    if (oldBadge) oldBadge.remove();
+
+    const total = timeCache[taskUrl];
+    if (total && total > 0) {
+      btn.appendChild(createBadge(total));
+    }
+  }
+
+  /* --------------------------------------------------------
+     9. Toast Notifications
+     -------------------------------------------------------- */
+
+  function ensureToastContainer() {
+    if (document.querySelector('.bctl-toast-container')) return;
+    const container = document.createElement('div');
+    container.className = 'bctl-toast-container';
+    document.body.appendChild(container);
+  }
+
+  /**
+   * Show a toast notification.
+   * @param {string} message
+   * @param {'success'|'error'|'info'} variant
+   * @param {number} duration — auto-dismiss time in ms
+   */
+  function showToast(message, variant = 'info', duration = 3000) {
+    ensureToastContainer();
+    const container = document.querySelector('.bctl-toast-container');
+
+    const toast = document.createElement('div');
+    toast.className = `bctl-toast bctl-toast-${variant}`;
+
+    const iconMap = { success: '✅', error: '❌', info: 'ℹ️' };
+    const icon = document.createElement('span');
+    icon.className = 'bctl-toast-icon';
+    icon.textContent = iconMap[variant] || 'ℹ️';
+
+    const msg = document.createElement('span');
+    msg.className = 'bctl-toast-message';
+    msg.textContent = message;
+
+    toast.appendChild(icon);
+    toast.appendChild(msg);
+    container.appendChild(toast);
+
+    // Auto-dismiss
+    setTimeout(() => dismissToast(toast), duration);
+  }
+
+  function dismissToast(toast) {
+    if (!toast.parentNode) return;
+    toast.classList.add('bctl-toast-dismissing');
+    toast.addEventListener('animationend', () => toast.remove(), {
+      once: true,
+    });
+    setTimeout(() => {
+      if (toast.parentNode) toast.remove();
+    }, 400);
+  }
+
+  /* --------------------------------------------------------
+     10. Utility Helpers
+     -------------------------------------------------------- */
+
+  /**
+   * Format seconds as HH:MM:SS (plain text).
+   */
+  function formatTime(totalSeconds) {
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return [h, m, s].map((n) => String(n).padStart(2, '0')).join(':');
+  }
+
+  /**
+   * Format seconds as HH:MM:SS with <span> wrapped colons
+   * so CSS can animate them (blinking).
+   */
+  function formatTimeHTML(totalSeconds) {
+    const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+    const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+    const s = String(totalSeconds % 60).padStart(2, '0');
+    return `${h}<span class="bctl-colon">:</span>${m}<span class="bctl-colon">:</span>${s}`;
+  }
+
+  /** Truncate a string to `len` characters. */
+  function truncate(str, len) {
+    return str.length > len ? str.slice(0, len) + '…' : str;
+  }
+
+  /* --------------------------------------------------------
+     11. Project Timesheet Modal
+     -------------------------------------------------------- */
+
+  function injectProjectButton() {
+    const isProjectPage = document.querySelector('meta[name="current-page-type"][content="project"]');
+    if (!isProjectPage) return;
+
+    const toolbarActions = document.querySelector('.perma-toolbar__actions');
+    if (!toolbarActions) return;
+
+    if (document.querySelector('.bctl-project-btn-wrapper')) return;
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'bctl-project-btn-wrapper';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'bctl-btn bctl-btn-primary';
+    btn.innerHTML = '<span style="margin-right:4px;">⏱️</span> Project Timesheet';
+    
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      openProjectModal();
+    });
+
+    wrapper.appendChild(btn);
+    toolbarActions.insertBefore(wrapper, toolbarActions.firstChild);
+  }
+
+  function openProjectModal() {
+    closeModal(); // Close existing modal if any
+
+    const projectName = getProjectName();
+
+    // Overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'bctl-modal-overlay';
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeModal();
+    });
+
+    // Modal box
+    const modal = document.createElement('div');
+    modal.className = 'bctl-modal bctl-project-modal';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'bctl-modal-header';
+
+    const title = document.createElement('h2');
+    title.className = 'bctl-modal-title';
+    title.innerHTML = `<span class="bctl-modal-title-icon">⏱️</span> ${projectName} Timesheet`;
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'bctl-modal-close';
+    closeBtn.innerHTML = '✕';
+    closeBtn.addEventListener('click', closeModal);
+
+    header.appendChild(title);
+    header.appendChild(closeBtn);
+    modal.appendChild(header);
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'bctl-modal-body';
+
+    const tableContainer = document.createElement('div');
+    tableContainer.className = 'bctl-table-container';
+    
+    const loadingState = document.createElement('div');
+    loadingState.className = 'bctl-empty-state';
+    loadingState.innerHTML = '<span class="bctl-spinner bctl-spinner--dark"></span> Loading entries...';
+    tableContainer.appendChild(loadingState);
+
+    body.appendChild(tableContainer);
+    modal.appendChild(body);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    currentOverlay = overlay;
+    
+    handleModalKeyboard(overlay);
+
+    // Fetch entries
+    chrome.runtime.sendMessage({
+      type: 'GET_PROJECT_ENTRIES',
+      payload: {
+        project: projectName,
+        user: currentUserName,
+        isAdmin: currentIsAdmin
+      }
+    }).then(response => {
+      tableContainer.innerHTML = ''; // clear loading state
+      
+      if (!response.success) {
+        const errorState = document.createElement('div');
+        errorState.className = 'bctl-empty-state';
+        errorState.textContent = 'Failed to load entries: ' + (response.error || 'Unknown error');
+        tableContainer.appendChild(errorState);
+        return;
+      }
+
+      // Render table
+      const table = document.createElement('table');
+      table.className = 'bctl-table';
+      
+      const thead = document.createElement('thead');
+      thead.innerHTML = `
+        <tr>
+          <th>Date</th>
+          <th>Person</th>
+          <th>Task</th>
+          <th>Notes</th>
+          <th>Hours</th>
+        </tr>
+      `;
+      table.appendChild(thead);
+      
+      const tbody = document.createElement('tbody');
+      
+      // Inline add row
+      const addRow = document.createElement('tr');
+      addRow.className = 'bctl-table-row--new';
+      
+      const todayDateStr = new Date().toISOString().split('T')[0];
+      
+      addRow.innerHTML = `
+        <td><input type="date" class="bctl-input" value="${todayDateStr}" disabled style="width:130px; opacity:0.8" /></td>
+        <td><strong>${currentUserName}</strong></td>
+        <td><input type="text" class="bctl-input bctl-new-task" placeholder="Optional task name" /></td>
+        <td><input type="text" class="bctl-input bctl-new-notes" placeholder="What did you work on?" /></td>
+        <td style="display:flex; gap:8px;">
+          <input type="number" class="bctl-input bctl-new-hours" placeholder="0.0" min="0" step="0.25" style="width:70px" />
+          <button type="button" class="bctl-btn bctl-btn-primary bctl-btn-save-new" style="padding:0 12px; height:auto">Save</button>
+        </td>
+      `;
+      
+      const saveNewBtn = addRow.querySelector('.bctl-btn-save-new');
+      const hoursInput = addRow.querySelector('.bctl-new-hours');
+      const notesInput = addRow.querySelector('.bctl-new-notes');
+      const taskInput = addRow.querySelector('.bctl-new-task');
+
+      saveNewBtn.addEventListener('click', async () => {
+        const hours = parseFloat(hoursInput.value);
+        if (!hours || hours <= 0) {
+          showToast('Please enter hours greater than 0', 'error');
+          return;
+        }
+        
+        saveNewBtn.disabled = true;
+        saveNewBtn.textContent = '...';
+        
+        const success = await logTime({
+          user: currentUserName,
+          project: projectName,
+          task: taskInput.value.trim(),
+          hours: hours,
+          notes: notesInput.value.trim(),
+          url: getCurrentUrl(), // Project URL
+          timestamp: new Date().toISOString(),
+        });
+        
+        if (success) {
+          showToast('Added new time entry', 'success');
+          // Refresh modal
+          openProjectModal();
+        } else {
+          saveNewBtn.disabled = false;
+          saveNewBtn.textContent = 'Save';
+          showToast('Failed to save', 'error');
+        }
+      });
+      
+      tbody.appendChild(addRow);
+      
+      // Data rows
+      if (response.entries && response.entries.length > 0) {
+        // Sort newest first
+        response.entries.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+        response.entries.forEach(entry => {
+          const tr = document.createElement('tr');
+          const date = new Date(entry.timestamp).toLocaleDateString();
+          tr.innerHTML = `
+            <td style="white-space:nowrap; color: var(--bctl-text-secondary); font-size:12px;">${date}</td>
+            <td><strong>${entry.user}</strong></td>
+            <td>${entry.task || '-'}</td>
+            <td>${entry.notes || '-'}</td>
+            <td><strong>${entry.hours}h</strong></td>
+          `;
+          tbody.appendChild(tr);
+        });
+        
+        // Total row
+        const totalTr = document.createElement('tr');
+        totalTr.style.background = 'var(--bctl-surface-alt)';
+        totalTr.innerHTML = `
+          <td colspan="4" style="text-align:right; text-transform:uppercase; font-size:11px; font-weight:700; color:var(--bctl-text-secondary);">Total (Current Month)</td>
+          <td style="font-size:15px; font-weight:700; color:var(--bctl-green-700);">${response.totalHours || 0}h</td>
+        `;
+        tbody.appendChild(totalTr);
+      } else {
+        const emptyTr = document.createElement('tr');
+        emptyTr.innerHTML = `<td colspan="5" class="bctl-empty-state">No entries found for this project this month.</td>`;
+        tbody.appendChild(emptyTr);
+      }
+      
+      table.appendChild(tbody);
+      tableContainer.appendChild(table);
+      
+      // Update header with total
+      if (response.totalHours !== undefined) {
+        title.innerHTML = `<span class="bctl-modal-title-icon">⏱️</span> ${projectName} Timesheet &nbsp;<span class="bctl-badge bctl-badge--has-time" style="font-size:12px; height:24px; padding:0 8px">${response.totalHours}h total</span>`;
+      }
+    });
+  }
+
+  /* --------------------------------------------------------
+     Bootstrap
+     -------------------------------------------------------- */
+
+  // Wait for the page to be ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
