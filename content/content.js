@@ -338,9 +338,9 @@
       return true;
     };
 
-    // 1. Detail View Main To-do Header or Kanban Card
-    if (todoEl.classList.contains('recordable--todo') || todoEl.classList.contains('recordable--kanban-card')) {
-      if (todoEl.classList.contains('recordable--kanban-card')) {
+    // 1. Detail View Main To-do Header, Kanban Card, or Schedule Event
+    if (todoEl.classList.contains('recordable--todo') || todoEl.classList.contains('recordable--kanban-card') || todoEl.classList.contains('event--show')) {
+      if (todoEl.classList.contains('recordable--kanban-card') || todoEl.classList.contains('event--show')) {
         const permaTitle = todoEl.querySelector('.perma-header__title');
         if (permaTitle) {
           permaTitle.style.display = 'flex';
@@ -398,42 +398,6 @@
       }
     }
     
-    // 5. Schedule Event Detail
-    if (todoEl.classList.contains('event--show')) {
-      const actionsContainer = document.querySelector('.perma-toolbar__actions');
-      if (actionsContainer) {
-        // Change the button into the "Timesheet" pill button
-        btn.innerHTML = `<span class="bctl-btn-icon">⏱️</span> <span>Timesheet</span>`;
-        
-        // Match the styling of the project timesheet button exactly, since they used that in the mockup
-        btn.className = 'bctl-timer-btn btn btn--sm';
-        btn.style.display = 'inline-flex';
-        btn.style.alignItems = 'center';
-        btn.style.gap = '6px';
-        btn.style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
-        btn.style.color = '#047857';
-        btn.style.border = 'none';
-        btn.style.borderRadius = '6px';
-        btn.style.padding = '0 10px';
-        btn.style.height = '30px';
-        btn.style.fontWeight = '500';
-        btn.style.fontSize = '13px';
-        btn.style.marginLeft = '0';
-        btn.style.marginRight = '4px';
-        
-        // Re-append badge if needed
-        const currentTaskUrl = getTaskUrl(todoEl);
-        const currentCachedHours = timeCache[currentTaskUrl];
-        if (currentCachedHours && currentCachedHours > 0) {
-          const badge = createBadge(currentCachedHours);
-          btn.appendChild(badge);
-        }
-
-        if (!actionsContainer.querySelector(':scope > .bctl-timer-btn')) {
-          actionsContainer.insertBefore(btn, actionsContainer.firstChild);
-        }
-        return true;
-      }
     }
   }
 
