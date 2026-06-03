@@ -121,6 +121,9 @@
 
   function detectUserProfile() {
     try {
+      // Always detect admin status first
+      currentIsAdmin = document.querySelector('meta[name="current-person-admin"][content="true"]') !== null;
+
       // Strategy 1 — known selectors
       for (const sel of USER_SELECTORS) {
         const el = document.querySelector(sel);
@@ -163,10 +166,12 @@
       if (!currentUserName) {
         currentUserName = 'Unknown User';
       }
-      
-      currentIsAdmin = document.querySelector('meta[name="current-person-admin"][content="true"]') !== null;
     } catch (err) {
-      console.warn('[BCTL] Profile detection error:', err);
+      if (err.message && err.message.includes('Extension context invalidated')) {
+        // Ignore this error; it happens when the extension is updated/reloaded
+        return;
+      }
+      console.log('[BCTL] Profile detection error:', err);
     }
   }
 
