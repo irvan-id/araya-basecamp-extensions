@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=380, initial-scale=1.0">
+  <meta name="description" content="Araya Basecamp Extensions - Track time and sync to Google Sheets">
+  <title>Araya Basecamp Extensions</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <div class="header-logo">
+          <svg class="header-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <div class="header-text">
+            <h1 class="header-title">Araya Basecamp Extensions</h1>
+            <span class="header-subtitle">for Basecamp</span>
+          </div>
+        </div>
+        <span class="header-version" id="versionBadge">v1.0.0</span>
+      </div>
+    </header>
+
+    <!-- Connection Status -->
+    <div class="status-bar" id="statusBar">
+      <span class="status-dot" id="statusDot"></span>
+      <span class="status-text" id="statusText">Checking...</span>
+    </div>
+
+    <!-- Summary Cards -->
+    <section class="summary-section">
+      <div class="summary-card summary-card--today" id="todayCard">
+        <div class="summary-icon">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+        </div>
+        <div class="summary-data">
+          <span class="summary-value" id="todayHours">0.0</span>
+          <span class="summary-label">Hours Today</span>
+        </div>
+      </div>
+      <div class="summary-card summary-card--week" id="weekCard">
+        <div class="summary-icon">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+        </div>
+        <div class="summary-data">
+          <span class="summary-value" id="weekHours">0.0</span>
+          <span class="summary-label">Hours This Week</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Recent Entries -->
+    <section class="recent-section">
+      <h2 class="section-title">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        Recent Entries
+      </h2>
+      <div class="entries-list" id="entriesList">
+        <div class="entries-empty" id="entriesEmpty">
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+          <p>No time entries yet</p>
+          <span>Start tracking time on Basecamp tasks</span>
+        </div>
+        <!-- Entries will be populated by JS -->
+      </div>
+    </section>
+
+    <!-- Settings Section -->
+    <section class="settings-section">
+      <button class="settings-toggle" id="settingsToggle" type="button" aria-expanded="false" aria-controls="settingsPanel">
+        <span class="settings-toggle-text">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          Settings
+        </span>
+        <svg class="settings-chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      <div class="settings-panel" id="settingsPanel" aria-hidden="true">
+        <div class="settings-content">
+          <!-- User Name -->
+          <div class="form-group">
+            <label class="form-label" for="userName">
+              User Name
+              <span class="form-hint">Auto-detected from Basecamp</span>
+            </label>
+            <input
+              type="text"
+              class="form-input"
+              id="userName"
+              placeholder="e.g., John Doe"
+              autocomplete="name"
+            >
+          </div>
+
+          <!-- Apps Script URL -->
+          <div class="form-group">
+            <label class="form-label" for="appsScriptUrl">
+              Apps Script URL
+              <span class="form-hint">Your deployed web app URL</span>
+            </label>
+            <input
+              type="url"
+              class="form-input"
+              id="appsScriptUrl"
+              placeholder="https://script.google.com/macros/s/..."
+              autocomplete="url"
+            >
+          </div>
+
+          <!-- API Key -->
+          <div class="form-group">
+            <label class="form-label" for="apiKey">
+              API Key
+              <span class="form-hint">From Apps Script properties</span>
+            </label>
+            <input
+              type="password"
+              class="form-input"
+              id="apiKey"
+              placeholder="Your secret API key"
+              autocomplete="off"
+            >
+          </div>
+
+          <!-- Theme -->
+          <div class="form-group">
+            <label class="form-label" for="themeSelect">
+              Theme
+            </label>
+            <select class="form-input" id="themeSelect">
+              <option value="system">System Default</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="form-actions">
+            <button type="button" class="btn btn--outline" id="testConnectionBtn">
+              <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              <span class="btn-label">Test Connection</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="btn btn--primary" id="saveSettingsBtn">
+              <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/>
+                <polyline points="7 3 7 8 15 8"/>
+              </svg>
+              Save Settings
+            </button>
+          </div>
+
+          <!-- Connection Test Result -->
+          <div class="test-result" id="testResult" aria-live="polite"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast" role="alert" aria-live="assertive">
+      <span class="toast-icon" id="toastIcon"></span>
+      <span class="toast-message" id="toastMessage"></span>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <button type="button" class="footer-link" id="openBasecampBtn" title="Open Basecamp">
+        <svg viewBox="0 0 193 37" width="48" height="14" fill="currentColor" stroke="none" style="margin-right: 6px;">
+          <path d="M182.785 7.50211C188.019 7.50281 192.101 11.2908 192.101 18.4689V18.8087C192.101 25.8916 188.094 29.8706 182.785 29.8712C179.987 29.9725 177.361 28.5133 175.963 26.0822V36.6525H170.029V7.93761H175.963V11.2892C177.421 8.91941 180.007 7.48451 182.785 7.50211ZM180.99 11.9904C178.005 11.9907 175.756 14.1506 175.756 18.4689V18.7912C175.756 23.0896 177.798 25.174 181.029 25.174C184.259 25.1732 186.093 22.8983 186.094 18.7326V18.4689C186.094 14.1129 183.975 11.9908 180.99 11.9904Z"/>
+          <path d="M76.7011 7.38685C82.2181 7.38755 87.1301 10.6266 87.1311 18.2775V19.9259H71.7111C71.8811 23.4863 73.8091 25.6075 77.0211 25.6075C79.7601 25.6072 81.1211 24.4142 81.4801 22.6154H87.1501C86.4701 27.2363 82.7831 29.8319 76.9451 29.8322C70.4081 29.7562 65.7041 25.7017 65.7031 18.8458V18.5236C65.5581 15.5477 66.6651 12.647 68.7561 10.5294C70.8471 8.41165 73.7311 7.27175 76.7011 7.38685ZM76.7011 11.4787C74.0381 11.4678 71.8581 13.6024 71.8071 16.2716H81.3671C81.1591 13.0332 79.4781 11.4792 76.7011 11.4787Z"/>
+          <path d="M99.7171 7.38656C104.667 7.38686 109.165 9.54757 109.769 15.703H104.1C104.023 14.638 103.521 13.6472 102.707 12.9588C101.892 12.2707 100.834 11.9421 99.7731 12.0467C96.7121 12.0467 94.6521 14.3388 94.6521 18.4491V18.7713C94.6531 23.0702 96.5421 25.287 99.8871 25.287C101.047 25.3697 102.194 24.9844 103.07 24.2166C103.946 23.4485 104.482 22.3597 104.555 21.1952H109.902C109.581 26.2896 105.894 29.8139 99.6781 29.8143C93.4621 29.8139 88.6821 25.8544 88.6821 18.8475V18.5252C88.5411 15.5441 89.6561 12.6409 91.7541 10.5233C93.8521 8.40557 96.7421 7.26636 99.7171 7.38656Z"/>
+          <path d="M34.373 7.42578C39.606 7.42618 43.31 9.54698 43.31 15.3614V29.3985H37.643V26.7266C36.158 28.8321 33.665 29.9854 31.103 29.7559C27.324 29.7559 23.998 27.8609 23.998 23.3536C23.999 18.3538 28.572 16.4786 35.129 16.4786H37.527V15.6075C37.527 13.0697 36.771 11.725 34.051 11.7247C33.162 11.6073 32.263 11.8679 31.574 12.4434C30.885 13.019 30.469 13.8581 30.424 14.7559H24.754C25.132 9.67958 29.139 7.42578 34.373 7.42578ZM35.242 20.002C31.803 20.002 29.801 20.7414 29.801 23.0333C29.801 24.5855 30.746 25.6094 32.918 25.6094C35.525 25.6091 37.529 24.1865 37.529 21.8008V20.002H35.242Z"/>
+          <path d="M121.637 7.38672C126.87 7.38712 130.593 9.50852 130.594 15.3222V29.3964H124.924V26.7265C123.448 28.8011 120.995 29.9499 118.461 29.7558C114.569 29.7556 111.299 27.8606 111.299 23.3535C111.299 18.3537 115.873 16.4786 122.41 16.4785H124.83V15.6074C124.83 13.0698 124.054 11.6861 121.353 11.6855C120.462 11.5682 119.561 11.8292 118.869 12.4042C118.177 12.9793 117.755 13.8173 117.705 14.7167H112.037C112.415 9.64062 116.402 7.38672 121.637 7.38672ZM122.543 20.0019C119.104 20.002 117.102 20.7414 117.102 23.0332C117.102 24.5854 118.048 25.6093 120.201 25.6093C122.826 25.6086 124.829 24.1862 124.83 21.8007V20.0019H122.543Z"/>
+          <path d="M54.762 7.38672C59.504 7.38692 63.057 9.09172 63.586 14.0156H58.144C58.067 13.2153 57.659 12.4826 57.021 11.9941C56.384 11.506 55.572 11.3046 54.781 11.4394C52.892 11.4394 51.758 12.3303 51.758 13.6562C51.758 14.9814 52.779 15.5507 55.896 15.9863C61.243 16.7629 64.191 18.1087 64.191 22.7109C64.191 27.3121 60.846 29.7554 55.197 29.7558C49.548 29.7558 46.089 27.2177 45.881 22.5781H51.398C51.644 24.4713 52.59 25.6074 55.178 25.6074C57.463 25.6071 58.521 24.7554 58.521 23.2792C58.521 21.802 57.256 21.1948 54.195 20.7402C48.527 19.869 46.297 18.2395 46.297 14.0546C46.297 9.86872 50.397 7.38682 54.762 7.38672Z"/>
+          <path d="M11.4901 0C17.8571 0.0004 21.1641 2.6331 21.1641 7.5761V7.7285C21.3691 10.706 19.3531 13.3814 16.4391 13.998C19.9381 14.3098 22.5411 17.3809 22.2791 20.8925V21.1953C22.2791 26.5734 18.7641 29.3959 12.0191 29.3964H0V0H11.4901ZM6.5391 24.7187H11.0001C14.2671 24.7181 15.7421 23.2399 15.7421 20.5703V20.4179C15.7421 17.7101 14.2671 16.3088 10.6781 16.3085H6.5391V24.7187ZM6.5391 12.123L10.4321 12.0468C13.6051 12.0466 14.8731 10.9086 14.8731 8.2578V8.125C14.8731 5.6634 13.4921 4.5471 10.3751 4.5468H6.5391V12.123Z"/>
+          <path d="M146.457 7.3675C149.062 7.1584 151.491 8.7046 152.41 11.1566C154.008 8.7456 156.722 7.3168 159.609 7.3675C163.577 7.3679 166.639 9.8692 166.639 15.5511V29.3968H160.762V16.2132C160.762 13.4674 159.533 12.2371 157.398 12.2367C156.244 12.1861 155.125 12.6425 154.334 13.4867C153.543 14.3307 153.157 15.4776 153.279 16.6293V29.3968H147.383V16.2132C147.383 13.4675 146.117 12.2372 144.039 12.2367C142.883 12.1869 141.763 12.6418 140.969 13.4847C140.175 14.3279 139.784 15.4757 139.9 16.6293V29.3968H133.986V7.9359H139.9V11.1566C141.213 8.7703 143.739 7.3105 146.457 7.3675Z"/>
+        </svg>
+      </button>
+      <span class="footer-meta">Araya Basecamp Extensions</span>
+    </footer>
+
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

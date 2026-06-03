@@ -1,0 +1,1001 @@
+/* ============================================================
+   Araya Basecamp Extensions — Content Script Styles
+   All classes prefixed with .bctl- to avoid conflicts.
+   ============================================================ */
+
+/* ----------------------------------------------------------
+   CSS Custom Properties (Design Tokens)
+   ---------------------------------------------------------- */
+:root {
+  --bctl-green-500: #10b981;
+  --bctl-green-600: #059669;
+  --bctl-green-700: #047857;
+  --bctl-red-500: #ef4444;
+  --bctl-red-600: #dc2626;
+  --bctl-gray-50: #f9fafb;
+  --bctl-gray-100: #f3f4f6;
+  --bctl-gray-200: #e5e7eb;
+  --bctl-gray-300: #d1d5db;
+  --bctl-gray-400: #9ca3af;
+  --bctl-gray-500: #6b7280;
+  --bctl-gray-600: #4b5563;
+  --bctl-gray-700: #374151;
+  --bctl-gray-800: #1f2937;
+  --bctl-gray-900: #111827;
+  --bctl-white: #ffffff;
+  --bctl-black: #000000;
+  --bctl-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --bctl-font-mono: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono",
+    Menlo, Monaco, Consolas, monospace;
+  --bctl-radius-sm: 6px;
+  --bctl-radius-md: 10px;
+  --bctl-radius-lg: 16px;
+  --bctl-radius-pill: 9999px;
+  --bctl-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --bctl-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --bctl-shadow-lg: 0 25px 50px rgba(0, 0, 0, 0.15);
+  --bctl-transition: 0.2s ease;
+
+  /* Modal surface colours (overridden in dark mode) */
+  --bctl-surface: var(--bctl-white);
+  --bctl-surface-alt: var(--bctl-gray-50);
+  --bctl-text-primary: var(--bctl-gray-900);
+  --bctl-text-secondary: var(--bctl-gray-500);
+  --bctl-border: var(--bctl-gray-200);
+}
+
+/* ----------------------------------------------------------
+   1. KEYFRAME ANIMATIONS
+   ---------------------------------------------------------- */
+
+@keyframes bctl-fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes bctl-fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes bctl-slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes bctl-slideDown {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+}
+
+@keyframes bctl-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+  }
+  50% {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes bctl-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bctl-slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes bctl-slideOutRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+@keyframes bctl-timerTick {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* ----------------------------------------------------------
+   2. TIMER BUTTON (.bctl-timer-btn)
+   ---------------------------------------------------------- */
+
+.bctl-timer-btn {
+  all: initial;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px;
+  margin-left: 8px;
+  background: var(--bctl-green-500);
+  color: var(--bctl-white);
+  font-family: var(--bctl-font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  vertical-align: middle;
+  transition: all var(--bctl-transition);
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.bctl-timer-btn:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.4);
+  background: var(--bctl-green-600);
+}
+
+.bctl-timer-btn:active {
+  transform: scale(0.97);
+  box-shadow: 0 1px 2px rgba(16, 185, 129, 0.3);
+}
+
+.bctl-timer-btn:focus-visible {
+  outline: 2px solid var(--bctl-green-500);
+  outline-offset: 2px;
+}
+
+/* Icon inside the button */
+.bctl-timer-btn .bctl-btn-icon {
+  font-size: 13px;
+  line-height: 1;
+  display: inline-flex;
+  pointer-events: none;
+}
+
+/* Elapsed time shown on button while timer runs */
+.bctl-timer-btn .bctl-elapsed {
+  font-family: var(--bctl-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Active / running timer state */
+.bctl-timer-btn.bctl-timer-active {
+  background: var(--bctl-red-500);
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.35);
+  animation: bctl-pulse 2s ease-in-out infinite;
+}
+
+.bctl-timer-btn.bctl-timer-active:hover {
+  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.45);
+  background: var(--bctl-red-600);
+}
+
+/* Colon separator blinks while running */
+.bctl-timer-btn.bctl-timer-active .bctl-elapsed-colon {
+  animation: bctl-timerTick 1s step-end infinite;
+}
+
+/* ----------------------------------------------------------
+   3. TIMER BADGE (.bctl-badge)
+   ---------------------------------------------------------- */
+
+.bctl-badge {
+  all: initial;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  margin-left: 4px;
+  background: var(--bctl-gray-100);
+  color: var(--bctl-gray-600);
+  font-family: var(--bctl-font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: var(--bctl-radius-pill);
+  white-space: nowrap;
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+}
+
+.bctl-badge--has-time {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--bctl-green-700);
+}
+
+/* ----------------------------------------------------------
+   4. MODAL OVERLAY (.bctl-modal-overlay)
+   ---------------------------------------------------------- */
+
+.bctl-modal-overlay {
+  all: initial;
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: bctl-fadeIn 0.2s ease forwards;
+  font-family: var(--bctl-font-sans);
+}
+
+.bctl-modal-overlay.bctl-closing {
+  animation: bctl-fadeOut 0.18s ease forwards;
+  pointer-events: none;
+}
+
+/* ----------------------------------------------------------
+   5. MODAL BOX (.bctl-modal)
+   ---------------------------------------------------------- */
+
+.bctl-modal {
+  position: relative;
+  width: 92vw;
+  max-width: 440px;
+  max-height: 90vh;
+  background: var(--bctl-surface);
+  border-radius: var(--bctl-radius-lg);
+  box-shadow: var(--bctl-shadow-lg);
+  overflow: hidden;
+  overflow-y: auto;
+  animation: bctl-slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  display: flex;
+  flex-direction: column;
+}
+
+.bctl-modal-overlay.bctl-closing .bctl-modal {
+  animation: bctl-slideDown 0.18s ease forwards;
+}
+
+/* Accent gradient bar at top */
+.bctl-modal::before {
+  content: "";
+  display: block;
+  height: 4px;
+  flex-shrink: 0;
+  background: linear-gradient(
+    90deg,
+    var(--bctl-green-500),
+    var(--bctl-green-600),
+    #06b6d4
+  );
+}
+
+/* ----------------------------------------------------------
+   6. MODAL HEADER (.bctl-modal-header)
+   ---------------------------------------------------------- */
+
+.bctl-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  flex-shrink: 0;
+}
+
+.bctl-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--bctl-font-sans);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--bctl-text-primary);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.bctl-modal-title-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.bctl-modal-close {
+  all: initial;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--bctl-radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--bctl-gray-400);
+  font-size: 18px;
+  cursor: pointer;
+  transition: all var(--bctl-transition);
+  font-family: var(--bctl-font-sans);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.bctl-modal-close:hover {
+  background: var(--bctl-gray-100);
+  color: var(--bctl-gray-700);
+}
+
+.bctl-modal-close:active {
+  transform: scale(0.92);
+}
+
+/* ----------------------------------------------------------
+   7. MODAL BODY
+   ---------------------------------------------------------- */
+
+.bctl-modal-body {
+  padding: 0 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Task / project info card */
+.bctl-task-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--bctl-surface-alt);
+  border: 1px solid var(--bctl-border);
+  border-radius: var(--bctl-radius-md);
+}
+
+.bctl-task-info-label {
+  font-family: var(--bctl-font-sans);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bctl-text-secondary);
+  margin: 0;
+}
+
+.bctl-task-info-value {
+  font-family: var(--bctl-font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--bctl-text-primary);
+  margin: 0;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+/* Divider between task info rows */
+.bctl-task-info-divider {
+  height: 1px;
+  background: var(--bctl-border);
+  margin: 2px 0;
+}
+
+/* ----------------------------------------------------------
+   8. FORM ELEMENTS
+   ---------------------------------------------------------- */
+
+.bctl-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bctl-form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.bctl-form-row > .bctl-form-group {
+  flex: 1;
+}
+
+.bctl-label {
+  font-family: var(--bctl-font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--bctl-text-secondary);
+  margin: 0;
+  line-height: 1;
+}
+
+.bctl-input,
+.bctl-textarea {
+  all: initial;
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  font-family: var(--bctl-font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--bctl-text-primary);
+  background: var(--bctl-surface);
+  border: 1.5px solid var(--bctl-border);
+  border-radius: var(--bctl-radius-sm);
+  transition: all var(--bctl-transition);
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+
+.bctl-input::placeholder,
+.bctl-textarea::placeholder {
+  color: var(--bctl-gray-400);
+}
+
+.bctl-input:hover,
+.bctl-textarea:hover {
+  border-color: var(--bctl-gray-300);
+}
+
+.bctl-input:focus,
+.bctl-textarea:focus {
+  outline: none;
+  border-color: var(--bctl-green-500);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.bctl-textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+/* Number input — hide spinners for a cleaner look */
+.bctl-input[type="number"]::-webkit-inner-spin-button,
+.bctl-input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.bctl-input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* ----------------------------------------------------------
+   9. BUTTONS
+   ---------------------------------------------------------- */
+
+.bctl-btn {
+  all: initial;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 18px;
+  font-family: var(--bctl-font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: var(--bctl-radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: all var(--bctl-transition);
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+  box-sizing: border-box;
+}
+
+.bctl-btn:focus-visible {
+  outline: 2px solid var(--bctl-green-500);
+  outline-offset: 2px;
+}
+
+/* Primary (green gradient) */
+.bctl-btn-primary {
+  background: linear-gradient(135deg, var(--bctl-green-500), var(--bctl-green-600));
+  color: var(--bctl-white);
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.3);
+}
+
+.bctl-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+  background: linear-gradient(135deg, #34d399, var(--bctl-green-500));
+}
+
+.bctl-btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.3);
+}
+
+.bctl-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Secondary (light gray) */
+.bctl-btn-secondary {
+  background: var(--bctl-gray-100);
+  color: var(--bctl-gray-700);
+}
+
+.bctl-btn-secondary:hover {
+  background: var(--bctl-gray-200);
+}
+
+.bctl-btn-secondary:active {
+  background: var(--bctl-gray-300);
+}
+
+/* Timer start/stop button */
+.bctl-btn-timer {
+  background: linear-gradient(135deg, var(--bctl-green-500), var(--bctl-green-600));
+  color: var(--bctl-white);
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.3);
+  min-width: 120px;
+}
+
+.bctl-btn-timer:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+
+.bctl-btn-timer:active {
+  transform: translateY(0);
+}
+
+/* Timer active = red stop button */
+.bctl-btn-timer.bctl-active {
+  background: linear-gradient(135deg, var(--bctl-red-500), var(--bctl-red-600));
+  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.3);
+}
+
+.bctl-btn-timer.bctl-active:hover {
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+  background: linear-gradient(135deg, #f87171, var(--bctl-red-500));
+}
+
+/* Button group (footer) */
+.bctl-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+/* ----------------------------------------------------------
+   10. TIMER DISPLAY (.bctl-timer-display)
+   ---------------------------------------------------------- */
+
+.bctl-timer-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bctl-surface-alt);
+  border: 1px solid var(--bctl-border);
+  border-radius: var(--bctl-radius-md);
+}
+
+.bctl-timer-time {
+  font-family: var(--bctl-font-mono);
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--bctl-text-primary);
+  letter-spacing: 0.04em;
+  line-height: 1;
+  tabular-nums: true;
+  font-variant-numeric: tabular-nums;
+}
+
+.bctl-timer-time .bctl-colon {
+  opacity: 1;
+  transition: opacity 0.3s;
+}
+
+.bctl-timer-time.bctl-running .bctl-colon {
+  animation: bctl-timerTick 1s step-end infinite;
+}
+
+.bctl-timer-hint {
+  font-family: var(--bctl-font-sans);
+  font-size: 12px;
+  color: var(--bctl-text-secondary);
+}
+
+/* ----------------------------------------------------------
+   11. MODE TABS (manual vs timer)
+   ---------------------------------------------------------- */
+
+.bctl-mode-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bctl-gray-100);
+  border-radius: var(--bctl-radius-sm);
+}
+
+.bctl-mode-tab {
+  all: initial;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  font-family: var(--bctl-font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bctl-gray-500);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all var(--bctl-transition);
+  white-space: nowrap;
+}
+
+.bctl-mode-tab:hover {
+  color: var(--bctl-gray-700);
+}
+
+.bctl-mode-tab.bctl-active {
+  background: var(--bctl-white);
+  color: var(--bctl-text-primary);
+  box-shadow: var(--bctl-shadow-sm);
+}
+
+/* ----------------------------------------------------------
+   12. TOAST NOTIFICATIONS (.bctl-toast)
+   ---------------------------------------------------------- */
+
+.bctl-toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999999;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.bctl-toast {
+  all: initial;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  min-width: 260px;
+  max-width: 380px;
+  font-family: var(--bctl-font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--bctl-white);
+  border-radius: var(--bctl-radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  animation: bctl-slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: auto;
+}
+
+.bctl-toast.bctl-toast-dismissing {
+  animation: bctl-slideOutRight 0.3s ease forwards;
+}
+
+.bctl-toast-icon {
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.bctl-toast-message {
+  flex: 1;
+}
+
+/* Success variant */
+.bctl-toast-success {
+  background: linear-gradient(135deg, var(--bctl-green-500), var(--bctl-green-600));
+}
+
+/* Error variant */
+.bctl-toast-error {
+  background: linear-gradient(135deg, var(--bctl-red-500), var(--bctl-red-600));
+}
+
+/* Info variant */
+.bctl-toast-info {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+/* ----------------------------------------------------------
+   13. LOADING SPINNER
+   ---------------------------------------------------------- */
+
+.bctl-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--bctl-white);
+  border-radius: 50%;
+  animation: bctl-spin 0.6s linear infinite;
+}
+
+.bctl-spinner--dark {
+  border-color: rgba(0, 0, 0, 0.1);
+  border-top-color: var(--bctl-gray-600);
+}
+
+/* ----------------------------------------------------------
+   14. OR-DIVIDER (between manual & timer sections)
+   ---------------------------------------------------------- */
+
+.bctl-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--bctl-text-secondary);
+  font-family: var(--bctl-font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.bctl-divider::before,
+.bctl-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--bctl-border);
+}
+
+/* ----------------------------------------------------------
+   15. PROJECT TIMESHEET UI
+   ---------------------------------------------------------- */
+
+.bctl-project-btn-wrapper {
+  margin-right: 8px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.bctl-project-modal {
+  max-width: 760px;
+  width: 95vw;
+}
+
+.bctl-table-container {
+  overflow-x: auto;
+  border: 1px solid var(--bctl-border);
+  border-radius: var(--bctl-radius-md);
+  background: var(--bctl-surface);
+}
+
+.bctl-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.bctl-table th {
+  padding: 10px 14px;
+  background: var(--bctl-surface-alt);
+  border-bottom: 1px solid var(--bctl-border);
+  font-family: var(--bctl-font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--bctl-text-secondary);
+}
+
+.bctl-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--bctl-border);
+  font-family: var(--bctl-font-sans);
+  font-size: 13px;
+  color: var(--bctl-text-primary);
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
+.bctl-table tr:last-child td {
+  border-bottom: none;
+}
+
+.bctl-table-row--new td {
+  background: rgba(16, 185, 129, 0.04);
+  padding: 8px 14px;
+}
+
+.bctl-table-row--new .bctl-input {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.bctl-empty-state {
+  padding: 30px;
+  text-align: center;
+  color: var(--bctl-text-secondary);
+  font-family: var(--bctl-font-sans);
+  font-size: 14px;
+}
+
+/* ----------------------------------------------------------
+   16. DARK MODE SUPPORT
+   ---------------------------------------------------------- */
+
+/* System-level dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bctl-surface: #1e1e2e;
+    --bctl-surface-alt: #262637;
+    --bctl-text-primary: #e4e4ef;
+    --bctl-text-secondary: #8888a4;
+    --bctl-border: #363649;
+  }
+
+  .bctl-badge {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--bctl-gray-400);
+  }
+
+  .bctl-badge--has-time {
+    background: rgba(16, 185, 129, 0.18);
+    color: #6ee7b7;
+  }
+
+  .bctl-modal-close:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--bctl-gray-300);
+  }
+
+  .bctl-btn-secondary {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--bctl-gray-300);
+  }
+
+  .bctl-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .bctl-btn-secondary:active {
+    background: rgba(255, 255, 255, 0.14);
+  }
+
+  .bctl-mode-tabs {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .bctl-mode-tab.bctl-active {
+    background: var(--bctl-surface);
+    color: var(--bctl-text-primary);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .bctl-input,
+  .bctl-textarea {
+    background: var(--bctl-surface-alt);
+    border-color: var(--bctl-border);
+    color: var(--bctl-text-primary);
+  }
+
+  .bctl-input::placeholder,
+  .bctl-textarea::placeholder {
+    color: var(--bctl-text-secondary);
+  }
+}
+
+/* Basecamp's own dark mode class (if present) */
+body.dark-mode,
+body[data-color-scheme="dark"],
+html[data-theme="dark"] {
+  --bctl-surface: #1e1e2e;
+  --bctl-surface-alt: #262637;
+  --bctl-text-primary: #e4e4ef;
+  --bctl-text-secondary: #8888a4;
+  --bctl-border: #363649;
+}
+
+/* ----------------------------------------------------------
+   16. RESPONSIVE
+   ---------------------------------------------------------- */
+
+@media (max-width: 500px) {
+  .bctl-modal {
+    width: 96vw;
+    max-width: none;
+    border-radius: 12px;
+  }
+
+  .bctl-modal-header {
+    padding: 14px 16px 10px;
+  }
+
+  .bctl-modal-body {
+    padding: 0 16px 16px;
+  }
+
+  .bctl-timer-time {
+    font-size: 28px;
+  }
+
+  .bctl-modal-footer {
+    flex-wrap: wrap;
+  }
+
+  .bctl-modal-footer .bctl-btn {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .bctl-toast {
+    min-width: unset;
+    max-width: calc(100vw - 40px);
+  }
+}
+
+/* ----------------------------------------------------------
+   17. UTILITY HELPERS
+   ---------------------------------------------------------- */
+
+.bctl-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.bctl-hidden {
+  display: none !important;
+}
