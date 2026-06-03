@@ -1484,7 +1484,6 @@
           <th>Task</th>
           <th>Notes</th>
           <th>Durasi</th>
-          <th>Tipe</th>
           <th></th>
         </tr>
       `;
@@ -1506,9 +1505,8 @@
         <td>
           <input type="text" class="bctl-input bctl-new-hours" placeholder="00:00" title="Format: Jam:Menit (contoh: 01:30)" style="width:70px" />
         </td>
-        <td><span style="font-size:11px; color:var(--bctl-text-secondary);">manual</span></td>
         <td>
-          <button type="button" class="bctl-btn bctl-btn-primary bctl-btn-save-new" style="padding:0 12px; height:auto">Save</button>
+          <button type="button" class="bctl-btn bctl-btn-primary bctl-btn-save-new" style="padding:4px 14px; font-size:12px; height:auto;">Save</button>
         </td>
       `;
       
@@ -1567,9 +1565,6 @@
         response.entries.forEach(entry => {
           const tr = document.createElement('tr');
           const date = new Date(entry.timestamp).toLocaleDateString();
-          const typeBadge = entry.type === 'otomatis'
-            ? '<span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:9999px;font-size:10px;font-weight:600;">⏱ otomatis</span>'
-            : '<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:9999px;font-size:10px;font-weight:600;">✏️ manual</span>';
           const isOwner = entry.user === currentUserName;
           tr.innerHTML = `
             <td style="white-space:nowrap; color: var(--bctl-text-secondary); font-size:12px;">${date}</td>
@@ -1577,8 +1572,7 @@
             <td>${entry.task || '-'}</td>
             <td>${entry.notes || '-'}</td>
             <td><strong>${formatHoursDisplay(entry.hours)}</strong></td>
-            <td>${typeBadge}</td>
-            <td>${isOwner ? '<button class="bctl-btn bctl-btn-edit" data-entry-id="' + entry.id + '" data-entry-hours="' + entry.hours + '" data-entry-notes="' + (entry.notes || '').replace(/"/g, '&quot;') + '" data-entry-task="' + (entry.task || '').replace(/"/g, '&quot;') + '" style="padding:2px 10px;font-size:11px;height:auto;background:var(--bctl-surface-alt);border:1px solid var(--bctl-border);border-radius:6px;cursor:pointer;">✏️ Edit</button>' : ''}</td>
+            <td>${isOwner ? '<button class="bctl-btn bctl-btn-primary bctl-btn-edit" data-entry-id="' + entry.id + '" data-entry-hours="' + entry.hours + '" data-entry-notes="' + (entry.notes || '').replace(/"/g, '&quot;') + '" data-entry-task="' + (entry.task || '').replace(/"/g, '&quot;') + '" style="padding:4px 14px;font-size:12px;height:auto;">✏️ Edit</button>' : ''}</td>
           `;
           tbody.appendChild(tr);
         });
@@ -1599,13 +1593,13 @@
         const totalTr = document.createElement('tr');
         totalTr.style.background = 'var(--bctl-surface-alt)';
         totalTr.innerHTML = `
-          <td colspan="6" style="text-align:right; text-transform:uppercase; font-size:11px; font-weight:700; color:var(--bctl-text-secondary);">Total (Current Month)</td>
+          <td colspan="5" style="text-align:right; text-transform:uppercase; font-size:11px; font-weight:700; color:var(--bctl-text-secondary);">Total (Current Month)</td>
           <td style="font-size:15px; font-weight:700; color:var(--bctl-green-700);">${formattedTotal}</td>
         `;
         tbody.appendChild(totalTr);
       } else {
         const emptyTr = document.createElement('tr');
-        emptyTr.innerHTML = `<td colspan="7" class="bctl-empty-state">No entries found for this project this month.</td>`;
+        emptyTr.innerHTML = `<td colspan="6" class="bctl-empty-state">No entries found for this project this month.</td>`;
         tbody.appendChild(emptyTr);
       }
       
