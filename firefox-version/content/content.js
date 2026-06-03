@@ -1573,7 +1573,7 @@
             <td>${entry.task || '-'}</td>
             <td>${entry.notes || '-'}</td>
             <td><strong>${formatHoursDisplay(entry.hours)}</strong></td>
-            <td>${isOwner ? '<button class="bctl-btn bctl-btn-primary bctl-btn-edit" data-entry-id="' + entry.id + '" data-entry-hours="' + entry.hours + '" data-entry-notes="' + (entry.notes || '').replace(/"/g, '&quot;') + '" data-entry-task="' + (entry.task || '').replace(/"/g, '&quot;') + '" style="padding:4px 14px;font-size:12px;height:auto;">✏️ Edit</button>' : ''}</td>
+            <td>${isOwner ? '<button class="bctl-btn bctl-btn-primary bctl-btn-edit" data-entry-id="' + entry.id + '" data-entry-hours="' + entry.hours + '" data-entry-notes="' + (entry.notes || '').replace(/"/g, '&quot;') + '" data-entry-task="' + (entry.task || '').replace(/"/g, '&quot;') + '" style="padding:4px 8px;font-size:12px;height:auto;" title="Edit Entry">✏️</button>' : ''}</td>
           `;
           tbody.appendChild(tr);
         });
@@ -1630,8 +1630,8 @@
       <td><input type="text" class="bctl-input bctl-edit-notes" value="${(curNotes || '').replace(/"/g, '&quot;')}" style="width:100%;" /></td>
       <td><input type="text" class="bctl-input bctl-edit-hours" value="${curHHMM}" placeholder="00:00" title="Format: Jam:Menit" style="width:70px;" /></td>
       <td style="display:flex;gap:6px;">
-        <button class="bctl-btn bctl-btn-primary bctl-edit-save" style="padding:4px 14px;font-size:12px;height:auto;">Save</button>
-        <button class="bctl-btn bctl-btn-secondary bctl-edit-cancel" style="padding:4px 14px;font-size:12px;height:auto;background:transparent;border:1px solid var(--bctl-border);">Cancel</button>
+        <button class="bctl-btn bctl-btn-primary bctl-edit-save" style="padding:4px 8px;font-size:12px;height:auto;" title="Save">💾</button>
+        <button class="bctl-btn bctl-btn-secondary bctl-edit-cancel" style="padding:4px 8px;font-size:12px;height:auto;background:transparent;border:1px solid var(--bctl-border);" title="Cancel">✕</button>
       </td>
     `;
 
