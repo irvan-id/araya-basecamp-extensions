@@ -669,11 +669,10 @@
 
     // ── Manual entry section ──
     const hoursInput = document.createElement('input');
-    hoursInput.type = 'number';
+    hoursInput.type = 'text';
     hoursInput.className = 'bctl-input';
-    hoursInput.min = '0';
-    hoursInput.step = '0.25';
-    hoursInput.placeholder = '0.00';
+    hoursInput.placeholder = '00:00';
+    hoursInput.title = 'Format: Jam:Menit (contoh: 01:30 untuk 1.5 jam)';
     hoursInput.value = '';
 
     const notesManual = document.createElement('textarea');
@@ -764,7 +763,9 @@
         const elapsed = getElapsedSeconds();
         stopTimer();
         timerHint.textContent = `Stopped at ${formatTime(elapsed)}`;
-        hoursInput.value = (elapsed / 3600).toFixed(2);
+        const h = Math.floor(elapsed / 3600);
+        const m = Math.floor((elapsed % 3600) / 60);
+        hoursInput.value = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
       } else {
         if (activeTimer) {
           showToast('Another timer is already running. Stop it first.', 'error');
@@ -808,9 +809,16 @@
         showToast('Tolong berhentikan timer terlebih dahulu (Stop) sebelum menyimpan.', 'error');
         return;
       }
-      const hours = parseFloat(hoursInput.value);
-      if (!hours || hours <= 0) {
-        showToast('Please enter hours greater than 0.', 'error');
+      const hoursStr = hoursInput.value.trim();
+      let hours = 0;
+      if (/^\d{1,2}:\d{2}$/.test(hoursStr)) {
+        const [h, m] = hoursStr.split(':');
+        hours = parseInt(h, 10) + parseInt(m, 10) / 60;
+      } else {
+        hours = parseFloat(hoursStr);
+      }
+      if (!hours || hours <= 0 || isNaN(hours)) {
+        showToast('Tolong masukkan durasi dengan format 00:00 (Jam:Menit).', 'error');
         return;
       }
       const notes =
@@ -1482,7 +1490,7 @@
         <td><input type="text" class="bctl-input bctl-new-task" placeholder="Optional task name" /></td>
         <td><input type="text" class="bctl-input bctl-new-notes" placeholder="What did you work on?" /></td>
         <td style="display:flex; gap:8px;">
-          <input type="number" class="bctl-input bctl-new-hours" placeholder="0.0" min="0" step="0.25" style="width:70px" />
+          <input type="text" class="bctl-input bctl-new-hours" placeholder="00:00" title="Format: Jam:Menit (contoh: 01:30)" style="width:70px" />
           <button type="button" class="bctl-btn bctl-btn-primary bctl-btn-save-new" style="padding:0 12px; height:auto">Save</button>
         </td>
       `;
@@ -1493,9 +1501,16 @@
       const taskInput = addRow.querySelector('.bctl-new-task');
 
       saveNewBtn.addEventListener('click', async () => {
-        const hours = parseFloat(hoursInput.value);
-        if (!hours || hours <= 0) {
-          showToast('Please enter hours greater than 0', 'error');
+        const hoursStr = hoursInput.value.trim();
+        let hours = 0;
+        if (/^\d{1,2}:\d{2}$/.test(hoursStr)) {
+          const [h, m] = hoursStr.split(':');
+          hours = parseInt(h, 10) + parseInt(m, 10) / 60;
+        } else {
+          hours = parseFloat(hoursStr);
+        }
+        if (!hours || hours <= 0 || isNaN(hours)) {
+          showToast('Tolong masukkan durasi dengan format 00:00 (Jam:Menit).', 'error');
           return;
         }
         
