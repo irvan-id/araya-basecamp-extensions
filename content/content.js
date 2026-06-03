@@ -453,11 +453,14 @@
      5. Context Extraction Helpers
      -------------------------------------------------------- */
 
-  /**
-   * Extract the project name from breadcrumbs, headers or title.
-   */
   function getProjectName(todoEl = null) {
-    const isProjectLink = (href) => /\/(projects|buckets)\/\d+(\?.*|#.*)?$/.test(href);
+    // 0. Strongest guarantee for detail pages (To-dos, Cards, Schedules)
+    const breadcrumb = document.querySelector('.perma-toolbar__breadcrumb--bucket strong, .perma-toolbar__breadcrumb--bucket');
+    if (breadcrumb && breadcrumb.textContent.trim()) {
+      return breadcrumb.textContent.replace(/\s*G\s*$/, '').trim();
+    }
+
+    const isProjectLink = (href) => /\/(projects|buckets)\/\d+(\/)?(\?.*|#.*)?$/.test(href);
 
     if (todoEl) {
       // 1. Basecamp explicitly provides the project name in this element on some list views!
@@ -507,7 +510,7 @@
       return metaBucket.getAttribute('content').trim();
     }
 
-    // 2. Breadcrumb selectors used by Basecamp 3/4
+    // 4. Breadcrumb selectors used by Basecamp 3/4
     const breadcrumbSelectors = [
       '.breadcrumb a',
       '.breadcrumbs a',
@@ -516,6 +519,7 @@
       '[data-role="project-name"]',
       'h1.project-name',
       '.perma-toolbar a[href*="/projects/"]',
+      '.perma-toolbar a[href*="/buckets/"]',
     ];
 
     for (const sel of breadcrumbSelectors) {
