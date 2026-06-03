@@ -596,6 +596,19 @@
   background: linear-gradient(135deg, #f87171, var(--bctl-red-500));
 }
 
+/* Timer pause button */
+.bctl-btn-pause {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: var(--bctl-white);
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.3);
+  min-width: 100px;
+}
+
+.bctl-btn-pause:hover {
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+  transform: translateY(-1px);
+}
+
 /* Button group (footer) */
 .bctl-modal-footer {
   display: flex;
@@ -870,76 +883,66 @@
    16. DARK MODE SUPPORT
    ---------------------------------------------------------- */
 
-/* System-level dark mode */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bctl-surface: #1e1e2e;
-    --bctl-surface-alt: #262637;
-    --bctl-text-primary: #e4e4ef;
-    --bctl-text-secondary: #8888a4;
-    --bctl-border: #363649;
-  }
-
-  .bctl-badge {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--bctl-gray-400);
-  }
-
-  .bctl-badge--has-time {
-    background: rgba(16, 185, 129, 0.18);
-    color: #6ee7b7;
-  }
-
-  .bctl-modal-close:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--bctl-gray-300);
-  }
-
-  .bctl-btn-secondary {
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--bctl-gray-300);
-  }
-
-  .bctl-btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .bctl-btn-secondary:active {
-    background: rgba(255, 255, 255, 0.14);
-  }
-
-  .bctl-mode-tabs {
-    background: rgba(255, 255, 255, 0.06);
-  }
-
-  .bctl-mode-tab.bctl-active {
-    background: var(--bctl-surface);
-    color: var(--bctl-text-primary);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-  }
-
-  .bctl-input,
-  .bctl-textarea {
-    background: var(--bctl-surface-alt);
-    border-color: var(--bctl-border);
-    color: var(--bctl-text-primary);
-  }
-
-  .bctl-input::placeholder,
-  .bctl-textarea::placeholder {
-    color: var(--bctl-text-secondary);
-  }
-}
-
-/* Basecamp's own dark mode class (if present) */
-body.dark-mode,
-body[data-color-scheme="dark"],
-html[data-theme="dark"] {
+html[data-bctl-theme="dark"] {
   --bctl-surface: #1e1e2e;
   --bctl-surface-alt: #262637;
   --bctl-text-primary: #e4e4ef;
   --bctl-text-secondary: #8888a4;
   --bctl-border: #363649;
+}
+
+html[data-bctl-theme="dark"] .bctl-badge {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--bctl-gray-400);
+}
+
+html[data-bctl-theme="dark"] .bctl-badge--has-time {
+  background: rgba(16, 185, 129, 0.18);
+  color: #6ee7b7;
+}
+
+html[data-bctl-theme="dark"] .bctl-modal-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--bctl-gray-300);
+}
+
+html[data-bctl-theme="dark"] .bctl-btn-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--bctl-gray-300);
+}
+
+html[data-bctl-theme="dark"] .bctl-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+html[data-bctl-theme="dark"] .bctl-btn-secondary:active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+html[data-bctl-theme="dark"] .bctl-mode-tabs {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+html[data-bctl-theme="dark"] .bctl-mode-tab.bctl-active {
+  background: var(--bctl-surface);
+  color: var(--bctl-text-primary);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+html[data-bctl-theme="dark"] .bctl-input,
+html[data-bctl-theme="dark"] .bctl-textarea {
+  background: var(--bctl-surface-alt);
+  border-color: var(--bctl-border);
+  color: var(--bctl-text-primary);
+}
+
+html[data-bctl-theme="dark"] .bctl-input::placeholder,
+html[data-bctl-theme="dark"] .bctl-textarea::placeholder {
+  color: var(--bctl-text-secondary);
+}
+
+.bctl-notes-group {
+  margin-top: 16px;
 }
 
 /* ----------------------------------------------------------

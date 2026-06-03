@@ -251,7 +251,11 @@ async function loadActiveTimer() {
 
     // Update time every second
     const updateTime = () => {
-      const seconds = Math.floor((Date.now() - activeTimer.startedAt) / 1000);
+      let seconds = activeTimer.accumulatedSeconds || 0;
+      if (activeTimer.status !== 'paused' && activeTimer.startedAt) {
+        seconds += Math.floor((Date.now() - activeTimer.startedAt) / 1000);
+      }
+      
       const h = Math.floor(seconds / 3600);
       const m = Math.floor((seconds % 3600) / 60);
       const s = seconds % 60;
@@ -260,7 +264,9 @@ async function loadActiveTimer() {
     };
     
     updateTime();
-    popupTimerInterval = setInterval(updateTime, 1000);
+    if (activeTimer.status !== 'paused') {
+      popupTimerInterval = setInterval(updateTime, 1000);
+    }
   } else {
     DOM.runningTimerSection.style.display = 'none';
   }

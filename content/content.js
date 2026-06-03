@@ -82,6 +82,7 @@
   async function init() {
     try {
       await loadCachedData();
+      applyTheme();
       detectUserProfile();
       injectProjectButton();
       injectButtons();
@@ -120,6 +121,26 @@
   /* --------------------------------------------------------
      2. Profile Detection
      -------------------------------------------------------- */
+
+  
+  function applyTheme() {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+      chrome.storage.sync.get('theme', (data) => {
+        let theme = data.theme || 'system';
+        if (theme === 'system') {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bctl-theme', theme);
+      });
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        chrome.storage.sync.get('theme', (data) => {
+          if (!data.theme || data.theme === 'system') {
+            document.documentElement.setAttribute('data-bctl-theme', e.matches ? 'dark' : 'light');
+          }
+        });
+      });
+    }
+  }
 
   function detectUserProfile() {
     try {
@@ -636,7 +657,8 @@
     );
 
     // Mode tabs (Manual vs Timer)
-    const { tabs, manualSection, timerSection } = buildModeTabs();
+    const { tabs, manualSection, timerSection, manualTab } = buildModeTabs(taskUrl);
+
     body.appendChild(tabs);
 
     // ── Manual entry section ──
@@ -653,7 +675,7 @@
     notesManual.placeholder = 'What did you work on?';
 
     manualSection.appendChild(buildFormGroup('Hours', hoursInput));
-    manualSection.appendChild(buildFormGroup('Notes', notesManual));
+    manualSection.appendChild((() => { const g = buildFormGroup('Notes', notesManual); g.classList.add('bctl-notes-group'); return g; })());
     body.appendChild(manualSection);
 
     // ── Timer section ──
@@ -669,47 +691,85 @@
     timerHint.className = 'bctl-timer-hint';
     timerHint.textContent = 'Click Start to begin tracking';
 
+    const pauseBtn = document.createElement('button');
+    pauseBtn.type = 'button';
+    pauseBtn.className = 'bctl-btn bctl-btn-pause';
+    pauseBtn.style.display = 'none';
+
     const timerBtn = document.createElement('button');
     timerBtn.type = 'button';
     timerBtn.className = 'bctl-btn bctl-btn-timer';
-    timerBtn.innerHTML = '▶ Start';
 
-    // If this task already has an active timer, show running state
-    if (activeTimer && activeTimer.taskUrl === taskUrl) {
-      const elapsed = getElapsedSeconds();
-      timerTime.innerHTML = formatTimeHTML(elapsed);
-      timerTime.classList.add('bctl-running');
-      timerBtn.classList.add('bctl-active');
-      timerBtn.innerHTML = '■ Stop';
-      timerHint.textContent = 'Timer is running…';
-      startModalTimerDisplay(timerTime);
-    }
+    const btnContainer = document.createElement('div');
+    btnContainer.style.display = 'flex';
+    btnContainer.style.gap = '8px';
+    btnContainer.style.justifyContent = 'center';
+    btnContainer.style.marginTop = '12px';
+    btnContainer.appendChild(pauseBtn);
+    btnContainer.appendChild(timerBtn);
 
-    timerBtn.addEventListener('click', () => {
+    function updateTimerUIState() {
       if (activeTimer && activeTimer.taskUrl === taskUrl) {
-        // Stop the timer
         const elapsed = getElapsedSeconds();
-        stopTimer();
+        timerTime.innerHTML = formatTimeHTML(elapsed);
+        timerTime.classList.add('bctl-running');
+        
+        timerBtn.classList.add('bctl-active');
+        timerBtn.innerHTML = '■ Stop';
+        
+        pauseBtn.style.display = '';
+        if (activeTimer.status === 'paused') {
+          pauseBtn.innerHTML = '▶ Resume';
+          timerHint.textContent = 'Timer is paused';
+        } else {
+          pauseBtn.innerHTML = '⏸ Pause';
+          timerHint.textContent = 'Timer is running…';
+        }
+        startModalTimerDisplay(timerTime);
+        
+        manualTab.disabled = true;
+        manualTab.style.opacity = '0.5';
+        manualTab.title = 'Timer is running';
+      } else {
         timerTime.classList.remove('bctl-running');
         timerBtn.classList.remove('bctl-active');
         timerBtn.innerHTML = '▶ Start';
+        pauseBtn.style.display = 'none';
+        timerHint.textContent = 'Click Start to begin tracking';
+        stopModalTimerDisplay();
+        
+        manualTab.disabled = false;
+        manualTab.style.opacity = '1';
+        manualTab.title = '';
+      }
+    }
+
+    pauseBtn.addEventListener('click', () => {
+      if (activeTimer && activeTimer.status === 'paused') {
+        resumeTimer();
+      } else {
+        pauseTimer();
+      }
+      updateTimerUIState();
+    });
+
+    timerBtn.addEventListener('click', () => {
+      if (activeTimer && activeTimer.taskUrl === taskUrl) {
+        const elapsed = getElapsedSeconds();
+        stopTimer();
         timerHint.textContent = `Stopped at ${formatTime(elapsed)}`;
         hoursInput.value = (elapsed / 3600).toFixed(2);
       } else {
-        // Only one timer at a time
         if (activeTimer) {
           showToast('Another timer is already running. Stop it first.', 'error');
           return;
         }
         startTimer(taskUrl, taskName, projectName);
-        timerTime.classList.add('bctl-running');
-        timerBtn.classList.add('bctl-active');
-        timerBtn.innerHTML = '■ Stop';
-        timerHint.textContent = 'Timer is running…';
-        startModalTimerDisplay(timerTime);
-        updateAllTimerButtons();
       }
+      updateTimerUIState();
     });
+
+    updateTimerUIState();
 
     const notesTimer = document.createElement('textarea');
     notesTimer.className = 'bctl-textarea';
@@ -717,9 +777,9 @@
 
     timerDisplay.appendChild(timerTime);
     timerDisplay.appendChild(timerHint);
-    timerDisplay.appendChild(timerBtn);
+    timerDisplay.appendChild(btnContainer);
     timerSection.appendChild(timerDisplay);
-    timerSection.appendChild(buildFormGroup('Notes', notesTimer));
+    timerSection.appendChild((() => { const g = buildFormGroup('Notes', notesTimer); g.classList.add('bctl-notes-group'); return g; })());
     body.appendChild(timerSection);
 
     // ── Footer ──
@@ -737,6 +797,11 @@
     saveBtn.className = 'bctl-btn bctl-btn-primary';
     saveBtn.textContent = 'Save';
     saveBtn.addEventListener('click', async () => {
+
+      if (lastSelectedMode === 'timer' && activeTimer && activeTimer.taskUrl === taskUrl) {
+        showToast('Tolong berhentikan timer terlebih dahulu (Stop) sebelum menyimpan.', 'error');
+        return;
+      }
       const hours = parseFloat(hoursInput.value);
       if (!hours || hours <= 0) {
         showToast('Please enter hours greater than 0.', 'error');
@@ -795,12 +860,7 @@
       lastSelectedMode = mode;
     }
 
-    // Set initial tab based on state or active timer
-    if (activeTimer && activeTimer.taskUrl === taskUrl) {
-      switchTab('timer');
-    } else {
-      switchTab(lastSelectedMode);
-    }
+    switchTab('timer');
   }
 
   /** Close and animate-out the modal. */
@@ -851,28 +911,28 @@
     return card;
   }
 
-  function buildModeTabs() {
+  function buildModeTabs(currentTaskUrl) {
     const tabs = document.createElement('div');
     tabs.className = 'bctl-mode-tabs';
 
     const manualTab = document.createElement('button');
     manualTab.type = 'button';
-    manualTab.className = 'bctl-mode-tab bctl-active';
+    manualTab.className = 'bctl-mode-tab';
     manualTab.dataset.mode = 'manual';
     manualTab.innerHTML = '✏️ Manual';
 
     const timerTab = document.createElement('button');
     timerTab.type = 'button';
-    timerTab.className = 'bctl-mode-tab';
+    timerTab.className = 'bctl-mode-tab bctl-active';
     timerTab.dataset.mode = 'timer';
     timerTab.innerHTML = '⏱️ Timer';
 
     const manualSection = document.createElement('div');
     manualSection.className = 'bctl-manual-section';
+    manualSection.style.display = 'none';
 
     const timerSection = document.createElement('div');
     timerSection.className = 'bctl-timer-section';
-    timerSection.style.display = 'none';
 
     manualTab.addEventListener('click', () => {
       manualTab.classList.add('bctl-active');
@@ -890,10 +950,18 @@
       lastSelectedMode = 'timer';
     });
 
-    tabs.appendChild(manualTab);
+    // Make Timer tab first
     tabs.appendChild(timerTab);
+    tabs.appendChild(manualTab);
 
-    return { tabs, manualSection, timerSection };
+    // Disable manual tab if timer is running
+    if (activeTimer && activeTimer.taskUrl === currentTaskUrl) {
+      manualTab.disabled = true;
+      manualTab.style.opacity = '0.5';
+      manualTab.title = 'Timer is running';
+    }
+
+    return { tabs, manualSection, timerSection, manualTab };
   }
 
   function buildFormGroup(labelText, inputEl) {
@@ -960,11 +1028,29 @@
       startedAt: Date.now(),
       user: currentUserName,
       pageUrl: getCurrentUrl(),
+      accumulatedSeconds: 0,
+      status: 'running',
     };
     persistTimerState();
   }
 
-  /** Stop the running timer. Returns elapsed seconds. */
+  function pauseTimer() {
+    if (!activeTimer || activeTimer.status === 'paused') return;
+    activeTimer.accumulatedSeconds = getElapsedSeconds();
+    activeTimer.status = 'paused';
+    activeTimer.startedAt = null;
+    persistTimerState();
+    updateAllTimerButtons();
+  }
+
+  function resumeTimer() {
+    if (!activeTimer || activeTimer.status === 'running') return;
+    activeTimer.status = 'running';
+    activeTimer.startedAt = Date.now();
+    persistTimerState();
+    updateAllTimerButtons();
+  }
+
   function stopTimer() {
     const elapsed = getElapsedSeconds();
     activeTimer = null;
@@ -974,23 +1060,21 @@
     return elapsed;
   }
 
-  /** Get seconds elapsed on the active timer (0 if none). */
   function getElapsedSeconds() {
     if (!activeTimer) return 0;
-    return Math.floor((Date.now() - activeTimer.startedAt) / 1000);
+    let seconds = activeTimer.accumulatedSeconds || 0;
+    if (activeTimer.status !== 'paused' && activeTimer.startedAt) {
+      seconds += Math.floor((Date.now() - activeTimer.startedAt) / 1000);
+    }
+    return seconds;
   }
 
-  /** Save timer state to storage for cross-page persistence. */
   function persistTimerState() {
     chrome.storage.local
       .set({ [STORAGE_KEYS.TIMER_STATE]: activeTimer })
       .catch(() => {});
   }
 
-  /**
-   * On page load, restore a previously running timer and
-   * re-attach the inline elapsed display to the matching button.
-   */
   function restoreRunningTimer() {
     if (!activeTimer) return;
     updateAllTimerButtons();
