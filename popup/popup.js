@@ -229,8 +229,8 @@ function setStatusDisconnected(message = 'Not configured') {
  * Load and display the currently running timer if it exists.
  */
 async function loadActiveTimer() {
-  const result = await chrome.storage.local.get('activeTimer');
-  const activeTimer = result.activeTimer;
+  const result = await chrome.storage.local.get('bctl_timer_state');
+  const activeTimer = result.bctl_timer_state;
 
   if (popupTimerInterval) {
     clearInterval(popupTimerInterval);
