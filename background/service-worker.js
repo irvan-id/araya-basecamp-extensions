@@ -280,7 +280,7 @@ async function handleUpdateEntry(payload) {
 
     if (response.ok) {
       const data = await response.json();
-      return data;
+      return { success: data.status === 'success', ...data };
     }
 
     return { success: false, error: `Server responded with status ${response.status}` };
