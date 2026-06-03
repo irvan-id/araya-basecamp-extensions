@@ -435,8 +435,22 @@
   /**
    * Extract the project name from breadcrumbs, headers or title.
    */
-  function getProjectName() {
-    // 1. Check meta tags (Basecamp often provides the exact name here)
+  function getProjectName(todoEl = null) {
+    if (todoEl) {
+      // 1. Check if we're inside a grouped container (used in My Assignments, Everything, etc.)
+      const groupEl = todoEl.closest('section, article, .assignments__bucket, .bucket-group');
+      if (groupEl && groupEl !== document.body && groupEl.tagName !== 'MAIN') {
+        const headerLink = groupEl.querySelector('header a, h2 a, h3 a, h4 a, a.project-link');
+        if (headerLink && (headerLink.href.includes('/projects/') || headerLink.href.includes('/buckets/'))) {
+          // Avoid grabbing task-specific links
+          if (!headerLink.href.includes('/todos/') && !headerLink.href.includes('/card_tables/') && !headerLink.href.includes('/schedule_entries/')) {
+            return headerLink.textContent.trim();
+          }
+        }
+      }
+    }
+
+    // 2. Check meta tags (Basecamp often provides the exact name here)
     const metaBucket = document.querySelector('meta[name="current-bucket-name"]');
     if (metaBucket && metaBucket.getAttribute('content')) {
       return metaBucket.getAttribute('content').trim();
@@ -546,7 +560,7 @@
     closeModal();
 
     const taskName = getTaskName(todoEl);
-    const projectName = getProjectName();
+    const projectName = getProjectName(todoEl);
     const taskUrl = getTaskUrl(todoEl);
 
     // Overlay
