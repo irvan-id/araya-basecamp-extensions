@@ -842,6 +842,10 @@
   text-align: left;
 }
 
+.bctl-table tr {
+  height: 54px;
+}
+
 .bctl-table th {
   padding: 10px 14px;
   background: var(--bctl-surface-alt);
@@ -855,7 +859,7 @@
 }
 
 .bctl-table td {
-  padding: 12px 14px;
+  padding: 8px 14px;
   border-bottom: 1px solid var(--bctl-border);
   font-family: var(--bctl-font-sans);
   font-size: 13px;
@@ -871,7 +875,6 @@
 .bctl-table-row--new td,
 .bctl-table-row--edit td {
   background: rgba(16, 185, 129, 0.04);
-  padding: 8px 14px;
 }
 
 .bctl-table-row--new .bctl-input,
