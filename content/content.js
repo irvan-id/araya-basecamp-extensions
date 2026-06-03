@@ -437,14 +437,20 @@
    */
   function getProjectName(todoEl = null) {
     if (todoEl) {
-      // 1. Check inside the task itself (Basecamp often puts a project link in the task's meta/parent area)
+      // 1. Basecamp explicitly provides the project name in this element on some list views!
+      const ancestry = todoEl.querySelector('.assignment__ancestry');
+      if (ancestry && ancestry.textContent.trim()) {
+        return ancestry.textContent.trim();
+      }
+
+      // 2. Check inside the task itself for a project link (exclude task/edit/list links)
       const internalLink = Array.from(todoEl.querySelectorAll('a[href*="/projects/"], a[href*="/buckets/"]'))
-        .find(a => !a.href.includes('/todos/') && !a.href.includes('/card_tables/') && !a.href.includes('/schedule_entries/') && !a.href.includes('/messages/'));
+        .find(a => !a.href.includes('/todos/') && !a.href.includes('/card_tables/') && !a.href.includes('/schedule_entries/') && !a.href.includes('/messages/') && !a.href.includes('/recordings/') && !a.href.includes('/todolists/') && !a.classList.contains('task-details__edit-button'));
       if (internalLink && internalLink.textContent.trim()) {
         return internalLink.textContent.trim();
       }
 
-      // 2. Walk up the DOM to find a grouping container or a preceding header
+      // 3. Walk up the DOM to find a grouping container or a preceding header
       let current = todoEl;
       while (current && current !== document.body && current.tagName !== 'MAIN') {
         // Check previous siblings for a header (if lists aren't wrapped in sections)
@@ -453,17 +459,17 @@
           if (prev.matches('header, h2, h3, h4, h5, .bucket__header, .assignments__bucket-name')) {
             const link = prev.querySelector('a[href*="/projects/"], a[href*="/buckets/"]') || 
                          (prev.matches('a[href*="/projects/"], a[href*="/buckets/"]') ? prev : null);
-            if (link && !link.href.includes('/todos/')) {
+            if (link && !link.href.includes('/todos/') && !link.href.includes('/todolists/')) {
               return link.textContent.trim();
             }
           }
           prev = prev.previousElementSibling;
         }
 
-        // Check if the current container has a header
-        if (current.matches('section, article, .assignments__bucket, .bucket, .bucket-group')) {
+        // Check if the current container has a header (including 'everything-bucket' for My Assignments)
+        if (current.matches('section, article, .assignments__bucket, .bucket, .bucket-group, .everything-bucket')) {
           const headerLink = Array.from(current.querySelectorAll('header a, h2 a, h3 a, h4 a, .bucket__name a, a.project-link'))
-            .find(a => (a.href.includes('/projects/') || a.href.includes('/buckets/')) && !a.href.includes('/todos/'));
+            .find(a => (a.href.includes('/projects/') || a.href.includes('/buckets/')) && !a.href.includes('/todos/') && !a.href.includes('/todolists/'));
           if (headerLink && headerLink.textContent.trim()) {
             return headerLink.textContent.trim();
           }
