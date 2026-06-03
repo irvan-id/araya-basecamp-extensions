@@ -773,8 +773,9 @@
         const elapsed = getElapsedSeconds();
         stopTimer();
         timerHint.textContent = `Stopped at ${formatTime(elapsed)}`;
-        const h = Math.floor(elapsed / 3600);
-        const m = Math.floor((elapsed % 3600) / 60);
+        const totalMinutes = Math.max(1, Math.ceil(elapsed / 60));
+        const h = Math.floor(totalMinutes / 60);
+        const m = totalMinutes % 60;
         hoursInput.value = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
       } else {
         if (activeTimer) {
