@@ -41,7 +41,6 @@
     '[data-behavior="todo_item"]',
     '.todos .todo_name',
     '.checkbox--todo',
-    '.event--show', // Schedule Event Detail
   ];
 
   /** Selectors to try for the current user's display name. */
@@ -231,7 +230,13 @@
   function injectButtons() {
     const pageTypeMeta = document.querySelector('meta[name="current-page-type"]');
     if (pageTypeMeta && pageTypeMeta.content === 'home') {
-      return; // Do not inject timer buttons on the home page
+      return; // Do not inject timer buttons on the global home page
+    }
+
+    const url = window.location.href;
+    // Do not inject timer buttons on the Project Home page or Schedule pages
+    if (/\/projects\/\d+\/?$/.test(url) || /\/schedules\/\d+/.test(url)) {
+      return;
     }
 
     const todos = findTodoElements();
@@ -338,9 +343,9 @@
       return true;
     };
 
-    // 1. Detail View Main To-do Header, Kanban Card, or Schedule Event
-    if (todoEl.classList.contains('recordable--todo') || todoEl.classList.contains('recordable--kanban-card') || todoEl.classList.contains('event--show')) {
-      if (todoEl.classList.contains('recordable--kanban-card') || todoEl.classList.contains('event--show')) {
+    // 1. Detail View Main To-do Header or Kanban Card
+    if (todoEl.classList.contains('recordable--todo') || todoEl.classList.contains('recordable--kanban-card')) {
+      if (todoEl.classList.contains('recordable--kanban-card')) {
         const permaTitle = todoEl.querySelector('.perma-header__title');
         if (permaTitle) {
           permaTitle.style.display = 'flex';
@@ -393,11 +398,7 @@
     } else {
       const textContainer =
         todoEl.querySelector('.checkbox__content, .todo__content, .todo_name, .todo__name') || todoEl;
-      if (textContainer) {
-        return appendBtn(textContainer);
-      }
-    }
-    
+      return appendBtn(textContainer);
     }
   }
 
@@ -476,7 +477,7 @@
 
     // Fallback to text element
     const textEl = todoEl.querySelector(
-      '.todo__content > a, .todo_name, .todo__name, .checkbox__text, .step__text, .step__title, .perma-header__title, .kanban-card__title, .card__title, a[href*="/card_tables/cards/"]'
+      '.todo__content > a, .todo_name, .todo__name, .checkbox__text, .step__text, .step__title, .perma-header__title > a, .kanban-card__title, .card__title, a[href*="/card_tables/cards/"]'
     );
     
     let raw = '';
