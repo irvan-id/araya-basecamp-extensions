@@ -1626,6 +1626,7 @@
     const m = Math.round(curHours * 60) % 60;
     const curHHMM = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 
+    tr.classList.add('bctl-table-row--edit');
     tr.innerHTML = `
       <td style="white-space:nowrap; color: var(--bctl-text-secondary); font-size:12px; opacity:0.5;">${curDate}</td>
       <td style="opacity:0.5;"><strong>${curUser}</strong></td>
@@ -1639,6 +1640,7 @@
     `;
 
     tr.querySelector('.bctl-edit-cancel').addEventListener('click', () => {
+      tr.classList.remove('bctl-table-row--edit');
       tr.innerHTML = originalHTML;
       // Re-attach edit handler
       const editBtn = tr.querySelector('.bctl-btn-edit');

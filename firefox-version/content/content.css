@@ -868,12 +868,14 @@
   border-bottom: none;
 }
 
-.bctl-table-row--new td {
+.bctl-table-row--new td,
+.bctl-table-row--edit td {
   background: rgba(16, 185, 129, 0.04);
   padding: 8px 14px;
 }
 
-.bctl-table-row--new .bctl-input {
+.bctl-table-row--new .bctl-input,
+.bctl-table-row--edit .bctl-input {
   padding: 6px 10px;
   font-size: 13px;
 }
