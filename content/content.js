@@ -441,11 +441,21 @@
     }
   }
 
+  /** Convert decimal hours to readable 'Xj Ym' format. */
+  function formatHoursDisplay(decimalHours) {
+    const totalMinutes = Math.round(decimalHours * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    if (h === 0) return `${m}m`;
+    if (m === 0) return `${h}j`;
+    return `${h}j ${m}m`;
+  }
+
   /** Create a small hours badge element. */
   function createBadge(hours) {
     const badge = document.createElement('span');
     badge.className = 'bctl-badge bctl-badge--has-time';
-    badge.textContent = `${parseFloat(hours.toFixed(2))}h`;
+    badge.textContent = formatHoursDisplay(hours);
     return badge;
   }
 
@@ -845,7 +855,7 @@
       if (success) {
         updateTimeCache(taskUrl, hours);
         refreshBadge(todoEl, taskUrl);
-        showToast(`Logged ${hours}h for "${truncate(taskName, 40)}"`, 'success');
+        showToast(`Logged ${formatHoursDisplay(hours)} for "${truncate(taskName, 40)}"`, 'success');
         closeModal();
       } else {
         saveBtn.disabled = false;
@@ -1381,9 +1391,9 @@
         const hoursSpan = btn.querySelector('.bctl-project-total-hours');
         if (hoursSpan) {
           if (response && response.success && response.totalHours !== undefined) {
-            hoursSpan.textContent = `${parseFloat(response.totalHours.toFixed(2))}h`;
+            hoursSpan.textContent = formatHoursDisplay(response.totalHours);
           } else {
-            hoursSpan.textContent = `0h`;
+            hoursSpan.textContent = `0m`;
           }
         }
       });
@@ -1557,18 +1567,18 @@
             <td><strong>${entry.user}</strong></td>
             <td>${entry.task || '-'}</td>
             <td>${entry.notes || '-'}</td>
-            <td><strong>${entry.hours}h</strong></td>
+            <td><strong>${formatHoursDisplay(entry.hours)}</strong></td>
           `;
           tbody.appendChild(tr);
         });
         
         // Total row
-        const formattedTotal = response.totalHours ? parseFloat(Number(response.totalHours).toFixed(2)) : 0;
+        const formattedTotal = response.totalHours ? formatHoursDisplay(response.totalHours) : '0m';
         const totalTr = document.createElement('tr');
         totalTr.style.background = 'var(--bctl-surface-alt)';
         totalTr.innerHTML = `
           <td colspan="4" style="text-align:right; text-transform:uppercase; font-size:11px; font-weight:700; color:var(--bctl-text-secondary);">Total (Current Month)</td>
-          <td style="font-size:15px; font-weight:700; color:var(--bctl-green-700);">${formattedTotal}h</td>
+          <td style="font-size:15px; font-weight:700; color:var(--bctl-green-700);">${formattedTotal}</td>
         `;
         tbody.appendChild(totalTr);
       } else {
@@ -1582,8 +1592,8 @@
       
       // Update header with total
       if (response.totalHours !== undefined) {
-        const formattedTotal = parseFloat(Number(response.totalHours).toFixed(2));
-        title.innerHTML = `<span class="bctl-modal-title-icon">⏱️</span> ${projectName} Timesheet &nbsp;<span class="bctl-badge bctl-badge--has-time" style="font-size:12px; height:24px; padding:0 8px">${formattedTotal}h total</span>`;
+        const formattedTotal = formatHoursDisplay(response.totalHours);
+        title.innerHTML = `<span class="bctl-modal-title-icon">⏱️</span> ${projectName} Timesheet &nbsp;<span class="bctl-badge bctl-badge--has-time" style="font-size:12px; height:24px; padding:0 8px">${formattedTotal} total</span>`;
       }
     });
   }
