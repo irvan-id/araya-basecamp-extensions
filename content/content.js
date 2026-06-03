@@ -466,7 +466,15 @@
 
       // 2. Check inside the task itself for a project link (exclude task/edit/list links)
       const internalLink = Array.from(todoEl.querySelectorAll('a[href*="/projects/"], a[href*="/buckets/"]'))
-        .find(a => !a.href.includes('/todos/') && !a.href.includes('/card_tables/') && !a.href.includes('/schedule_entries/') && !a.href.includes('/messages/') && !a.href.includes('/recordings/') && !a.href.includes('/todolists/') && !a.classList.contains('task-details__edit-button'));
+        .find(a => !a.href.includes('/todos/') 
+                && !a.href.includes('/card_tables/') 
+                && !a.href.includes('/schedule_entries/') 
+                && !a.href.includes('/messages/') 
+                && !a.href.includes('/recordings/') 
+                && !a.href.includes('/todolists/') 
+                && !a.href.includes('/boosts/')
+                && !a.href.includes('/comments')
+                && !a.classList.contains('task-details__edit-button'));
       if (internalLink && internalLink.textContent.trim()) {
         return internalLink.textContent.trim();
       }
