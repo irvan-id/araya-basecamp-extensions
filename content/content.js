@@ -815,7 +815,8 @@
         const [h, m] = hoursStr.split(':');
         hours = parseInt(h, 10) + parseInt(m, 10) / 60;
       } else {
-        hours = parseFloat(hoursStr);
+        showToast('Tolong masukkan durasi dengan format 00:00 (Jam:Menit).', 'error');
+        return;
       }
       if (!hours || hours <= 0 || isNaN(hours)) {
         showToast('Tolong masukkan durasi dengan format 00:00 (Jam:Menit).', 'error');
@@ -838,6 +839,7 @@
         notes,
         url: taskUrl,
         timestamp: new Date().toISOString(),
+        type: manualSection.style.display !== 'none' ? 'manual' : 'otomatis',
       });
 
       if (success) {
@@ -1507,7 +1509,8 @@
           const [h, m] = hoursStr.split(':');
           hours = parseInt(h, 10) + parseInt(m, 10) / 60;
         } else {
-          hours = parseFloat(hoursStr);
+          showToast('Tolong masukkan durasi dengan format 00:00 (Jam:Menit).', 'error');
+          return;
         }
         if (!hours || hours <= 0 || isNaN(hours)) {
           showToast('Tolong masukkan durasi dengan format 00:00 (Jam:Menit).', 'error');
@@ -1525,6 +1528,7 @@
           notes: notesInput.value.trim(),
           url: getCurrentUrl(), // Project URL
           timestamp: new Date().toISOString(),
+          type: 'manual',
         });
         
         if (success) {
