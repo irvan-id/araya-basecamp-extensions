@@ -316,21 +316,24 @@
       openModal(todoEl);
     });
 
-    // 1. Detail View Main To-do Header
-    const permaFlex = todoEl.querySelector('.perma-header__content .flex.items-center');
-    if (permaFlex) {
-      permaFlex.appendChild(btn);
-      return;
-    }
-
-    // 1.1 Detail View Kanban Card Header
-    const permaTitle = todoEl.querySelector('.perma-header__title');
-    if (permaTitle && todoEl.classList.contains('recordable--kanban-card')) {
-      permaTitle.style.display = 'flex';
-      permaTitle.style.alignItems = 'center';
-      permaTitle.style.gap = '12px';
-      permaTitle.appendChild(btn);
-      return;
+    // 1. Detail View Main To-do Header or Kanban Card
+    if (todoEl.classList.contains('recordable--todo') || todoEl.classList.contains('recordable--kanban-card')) {
+      if (todoEl.classList.contains('recordable--kanban-card')) {
+        const permaTitle = todoEl.querySelector('.perma-header__title');
+        if (permaTitle) {
+          permaTitle.style.display = 'flex';
+          permaTitle.style.alignItems = 'center';
+          permaTitle.style.gap = '12px';
+          permaTitle.appendChild(btn);
+        }
+        return; // Always return so we don't fall back to standard logic
+      }
+      
+      const permaFlex = todoEl.querySelector('.perma-header__content .flex.items-center');
+      if (permaFlex) {
+        permaFlex.appendChild(btn);
+      }
+      return; // Always return so we don't fall back to standard logic
     }
 
     // 2. Subtasks (Steps)
@@ -1120,9 +1123,6 @@
      -------------------------------------------------------- */
 
   function injectProjectButton() {
-    const isProjectPage = document.querySelector('meta[name="current-page-type"][content="project"]');
-    if (!isProjectPage) return;
-
     const toolbarActions = document.querySelector('.perma-toolbar__actions');
     if (!toolbarActions) return;
 
@@ -1130,11 +1130,24 @@
 
     const wrapper = document.createElement('div');
     wrapper.className = 'bctl-project-btn-wrapper';
+    wrapper.style.marginRight = '8px';
 
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'bctl-btn bctl-btn-primary';
-    btn.innerHTML = '<span style="margin-right:4px;">⏱️</span> Project Timesheet';
+    btn.className = 'btn btn--sm';
+    btn.style.display = 'flex';
+    btn.style.alignItems = 'center';
+    btn.style.gap = '6px';
+    btn.style.backgroundColor = '#f3f4f6'; // Match the notification button
+    btn.style.color = '#374151';
+    btn.style.border = 'none';
+    btn.style.borderRadius = '6px';
+    btn.style.padding = '0 10px';
+    btn.style.height = '30px';
+    btn.style.fontWeight = '500';
+    btn.style.fontSize = '14px';
+
+    btn.innerHTML = '<span>⏱️</span> Timesheet <span class="bctl-project-total-hours" style="color: #6b7280; font-weight: 400; margin-left: 2px;">...</span>';
     
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -1143,6 +1156,25 @@
 
     wrapper.appendChild(btn);
     toolbarActions.insertBefore(wrapper, toolbarActions.firstChild);
+
+    // Fetch the total hours for this project
+    chrome.runtime.sendMessage({
+      type: 'GET_PROJECT_ENTRIES',
+      payload: {
+        project: getProjectName(),
+        user: currentUserName,
+        isAdmin: currentIsAdmin
+      }
+    }, (response) => {
+      const hoursSpan = btn.querySelector('.bctl-project-total-hours');
+      if (hoursSpan) {
+        if (response && response.success && response.totalHours !== undefined) {
+          hoursSpan.textContent = `${parseFloat(response.totalHours.toFixed(2))}h`;
+        } else {
+          hoursSpan.textContent = `0h`;
+        }
+      }
+    });
   }
 
   function openProjectModal() {
