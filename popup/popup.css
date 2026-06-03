@@ -193,6 +193,69 @@ body::-webkit-scrollbar {
   50% { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0); }
 }
 
+/* ---------- Running Timer ---------- */
+.running-timer-section {
+  padding: 16px 20px 4px;
+}
+
+.running-timer-card {
+  background: var(--color-primary-ghost);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow-sm);
+  animation: cardIn var(--duration-slow) var(--ease-out);
+}
+
+.running-timer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+  flex: 1;
+  padding-right: 12px;
+}
+
+.running-timer-project {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-primary);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.running-timer-project:hover {
+  text-decoration: underline;
+}
+
+.running-timer-task {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.running-timer-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  background: var(--color-surface);
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(16, 185, 129, 0.1);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+}
+
 /* ---------- Summary Cards ---------- */
 .summary-section {
   display: grid;

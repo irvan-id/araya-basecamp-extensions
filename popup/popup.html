@@ -33,6 +33,24 @@
       <span class="status-text" id="statusText">Checking...</span>
     </div>
 
+    <!-- Running Timer -->
+    <section class="running-timer-section" id="runningTimerSection" style="display: none;">
+      <h2 class="section-title">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        Currently Running
+      </h2>
+      <div class="running-timer-card">
+        <div class="running-timer-info">
+          <a href="#" class="running-timer-project" id="runningTimerProject" target="_blank" rel="noopener">Project Name</a>
+          <span class="running-timer-task" id="runningTimerTask" title="">Task Name</span>
+        </div>
+        <div class="running-timer-time" id="runningTimerTime">00:00:00</div>
+      </div>
+    </section>
+
     <!-- Summary Cards -->
     <section class="summary-section">
       <div class="summary-card summary-card--today" id="todayCard">
