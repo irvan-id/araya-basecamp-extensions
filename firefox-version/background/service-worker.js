@@ -73,6 +73,8 @@ async function handleMessage(message) {
       return handleTestConnection();
     case 'GET_PROJECT_ENTRIES':
       return handleGetProjectEntries(message.payload);
+    case 'UPDATE_ENTRY':
+      return handleUpdateEntry(message.payload);
     case 'GET_TIMER_STATE':
       return handleGetTimerState();
     case 'SET_TIMER_STATE':
@@ -249,6 +251,45 @@ async function handleGetProjectEntries(payload) {
 }
 
 /**
+ * UPDATE_ENTRY — Edit an existing entry in Google Sheets.
+ *
+ * @param {object} payload - { entryId, hours?, notes?, task? }
+ * @returns {Promise<object>}
+ */
+async function handleUpdateEntry(payload) {
+  try {
+    const settings = await loadSettings();
+
+    if (!settings.appsScriptUrl) {
+      return { success: false, error: 'Apps Script URL is not configured.' };
+    }
+
+    const response = await fetch(settings.appsScriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'update_entry',
+        entryId: payload.entryId,
+        hours: payload.hours,
+        notes: payload.notes,
+        task: payload.task,
+        apiKey: settings.apiKey || '',
+      }),
+      redirect: 'follow',
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data;
+    }
+
+    return { success: false, error: `Server responded with status ${response.status}` };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
  * GET_TIMER_STATE — Return the currently active timer (or null).
  *
  * @returns {Promise<object>}
@@ -324,6 +365,7 @@ function buildEntry(data) {
     hours: typeof data.hours === 'number' ? data.hours : parseFloat(data.hours) || 0,
     notes: data.notes || '',
     url: data.url || '',
+    type: data.type || 'unknown',
     timestamp: data.timestamp || new Date().toISOString(),
     synced: false,
     syncError: '',
@@ -377,6 +419,7 @@ async function syncEntry(entry) {
         notes: entry.notes,
         url: entry.url,
         timestamp: entry.timestamp,
+        type: entry.type || 'unknown',
         apiKey: settings.apiKey || '',
       }),
       redirect: 'follow',

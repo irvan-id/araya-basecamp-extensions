@@ -1483,7 +1483,9 @@
           <th>Person</th>
           <th>Task</th>
           <th>Notes</th>
-          <th>Hours</th>
+          <th>Durasi</th>
+          <th>Tipe</th>
+          <th></th>
         </tr>
       `;
       table.appendChild(thead);
@@ -1501,8 +1503,11 @@
         <td><strong>${currentUserName}</strong></td>
         <td><input type="text" class="bctl-input bctl-new-task" placeholder="Optional task name" /></td>
         <td><input type="text" class="bctl-input bctl-new-notes" placeholder="What did you work on?" /></td>
-        <td style="display:flex; gap:8px;">
+        <td>
           <input type="text" class="bctl-input bctl-new-hours" placeholder="00:00" title="Format: Jam:Menit (contoh: 01:30)" style="width:70px" />
+        </td>
+        <td><span style="font-size:11px; color:var(--bctl-text-secondary);">manual</span></td>
+        <td>
           <button type="button" class="bctl-btn bctl-btn-primary bctl-btn-save-new" style="padding:0 12px; height:auto">Save</button>
         </td>
       `;
@@ -1562,14 +1567,31 @@
         response.entries.forEach(entry => {
           const tr = document.createElement('tr');
           const date = new Date(entry.timestamp).toLocaleDateString();
+          const typeBadge = entry.type === 'otomatis'
+            ? '<span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:9999px;font-size:10px;font-weight:600;">⏱ otomatis</span>'
+            : '<span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:9999px;font-size:10px;font-weight:600;">✏️ manual</span>';
+          const isOwner = entry.user === currentUserName;
           tr.innerHTML = `
             <td style="white-space:nowrap; color: var(--bctl-text-secondary); font-size:12px;">${date}</td>
             <td><strong>${entry.user}</strong></td>
             <td>${entry.task || '-'}</td>
             <td>${entry.notes || '-'}</td>
             <td><strong>${formatHoursDisplay(entry.hours)}</strong></td>
+            <td>${typeBadge}</td>
+            <td>${isOwner ? '<button class="bctl-btn bctl-btn-edit" data-entry-id="' + entry.id + '" data-entry-hours="' + entry.hours + '" data-entry-notes="' + (entry.notes || '').replace(/"/g, '&quot;') + '" data-entry-task="' + (entry.task || '').replace(/"/g, '&quot;') + '" style="padding:2px 10px;font-size:11px;height:auto;background:var(--bctl-surface-alt);border:1px solid var(--bctl-border);border-radius:6px;cursor:pointer;">✏️ Edit</button>' : ''}</td>
           `;
           tbody.appendChild(tr);
+        });
+
+        // Attach edit handlers
+        tbody.querySelectorAll('.bctl-btn-edit').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const entryId = btn.dataset.entryId;
+            const curHours = parseFloat(btn.dataset.entryHours);
+            const curNotes = btn.dataset.entryNotes;
+            const curTask = btn.dataset.entryTask;
+            openEditEntryInline(btn.closest('tr'), entryId, curHours, curNotes, curTask);
+          });
         });
         
         // Total row
@@ -1577,13 +1599,13 @@
         const totalTr = document.createElement('tr');
         totalTr.style.background = 'var(--bctl-surface-alt)';
         totalTr.innerHTML = `
-          <td colspan="4" style="text-align:right; text-transform:uppercase; font-size:11px; font-weight:700; color:var(--bctl-text-secondary);">Total (Current Month)</td>
+          <td colspan="6" style="text-align:right; text-transform:uppercase; font-size:11px; font-weight:700; color:var(--bctl-text-secondary);">Total (Current Month)</td>
           <td style="font-size:15px; font-weight:700; color:var(--bctl-green-700);">${formattedTotal}</td>
         `;
         tbody.appendChild(totalTr);
       } else {
         const emptyTr = document.createElement('tr');
-        emptyTr.innerHTML = `<td colspan="5" class="bctl-empty-state">No entries found for this project this month.</td>`;
+        emptyTr.innerHTML = `<td colspan="7" class="bctl-empty-state">No entries found for this project this month.</td>`;
         tbody.appendChild(emptyTr);
       }
       
@@ -1594,6 +1616,73 @@
       if (response.totalHours !== undefined) {
         const formattedTotal = formatHoursDisplay(response.totalHours);
         title.innerHTML = `<span class="bctl-modal-title-icon">⏱️</span> ${projectName} Timesheet &nbsp;<span class="bctl-badge bctl-badge--has-time" style="font-size:12px; height:24px; padding:0 8px">${formattedTotal} total</span>`;
+      }
+    });
+  }
+
+  /**
+   * Replace a table row with inline edit fields for task, notes & hours.
+   */
+  function openEditEntryInline(tr, entryId, curHours, curNotes, curTask) {
+    const originalHTML = tr.innerHTML;
+    const h = Math.floor(Math.round(curHours * 60) / 60);
+    const m = Math.round(curHours * 60) % 60;
+    const curHHMM = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+
+    tr.innerHTML = `
+      <td colspan="2" style="font-size:12px;color:var(--bctl-text-secondary);">Editing...</td>
+      <td><input type="text" class="bctl-input bctl-edit-task" value="${(curTask || '').replace(/"/g, '&quot;')}" style="width:100%;" /></td>
+      <td><input type="text" class="bctl-input bctl-edit-notes" value="${(curNotes || '').replace(/"/g, '&quot;')}" style="width:100%;" /></td>
+      <td><input type="text" class="bctl-input bctl-edit-hours" value="${curHHMM}" placeholder="00:00" title="Format: Jam:Menit" style="width:70px;" /></td>
+      <td colspan="2" style="display:flex;gap:6px;">
+        <button class="bctl-btn bctl-btn-primary bctl-edit-save" style="padding:2px 10px;font-size:11px;height:auto;">💾 Save</button>
+        <button class="bctl-btn bctl-btn-secondary bctl-edit-cancel" style="padding:2px 10px;font-size:11px;height:auto;">Cancel</button>
+      </td>
+    `;
+
+    tr.querySelector('.bctl-edit-cancel').addEventListener('click', () => {
+      tr.innerHTML = originalHTML;
+      // Re-attach edit handler
+      const editBtn = tr.querySelector('.bctl-btn-edit');
+      if (editBtn) {
+        editBtn.addEventListener('click', () => {
+          openEditEntryInline(tr, editBtn.dataset.entryId, parseFloat(editBtn.dataset.entryHours), editBtn.dataset.entryNotes, editBtn.dataset.entryTask);
+        });
+      }
+    });
+
+    tr.querySelector('.bctl-edit-save').addEventListener('click', async () => {
+      const newHoursStr = tr.querySelector('.bctl-edit-hours').value.trim();
+      const newNotes = tr.querySelector('.bctl-edit-notes').value.trim();
+      const newTask = tr.querySelector('.bctl-edit-task').value.trim();
+
+      if (!/^\d{1,2}:\d{2}$/.test(newHoursStr)) {
+        showToast('Format durasi salah. Gunakan format 00:00 (Jam:Menit).', 'error');
+        return;
+      }
+      const [hh, mm] = newHoursStr.split(':');
+      const newHours = parseInt(hh, 10) + parseInt(mm, 10) / 60;
+      if (!newHours || newHours <= 0) {
+        showToast('Durasi harus lebih dari 0.', 'error');
+        return;
+      }
+
+      const saveBtn = tr.querySelector('.bctl-edit-save');
+      saveBtn.disabled = true;
+      saveBtn.textContent = '...';
+
+      const result = await chrome.runtime.sendMessage({
+        type: 'UPDATE_ENTRY',
+        payload: { entryId, hours: newHours, notes: newNotes, task: newTask }
+      });
+
+      if (result && result.success) {
+        showToast('Entry berhasil diperbarui!', 'success');
+        openProjectModal(); // refresh the whole table
+      } else {
+        showToast('Gagal memperbarui: ' + (result?.error || 'Unknown'), 'error');
+        saveBtn.disabled = false;
+        saveBtn.textContent = '💾 Save';
       }
     });
   }
