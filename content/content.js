@@ -35,6 +35,7 @@
     '.step__item', // Basecamp 4 Subtasks
     '.recordable--todo',
     '.recordable--kanban-card', // Kanban Card Detail
+    'article.event--show', // Schedule Event Detail
     '[data-drag-and-drop-type="kanban_card"]', // Kanban Card Board Wrapper
     '.kanban-card', // Kanban Card Board View
     '.card', // Generic Card
@@ -356,8 +357,10 @@
       return true;
     };
 
-    // 1. Detail View Main To-do Header or Kanban Card
-    if (todoEl.classList.contains('recordable--todo') || todoEl.classList.contains('recordable--kanban-card')) {
+    // 1. Detail View Main Header (To-do, Kanban Card, Schedule Event)
+    if (todoEl.classList.contains('recordable--todo') || 
+        todoEl.classList.contains('recordable--kanban-card') || 
+        todoEl.classList.contains('event--show')) {
       const permaTitle = todoEl.querySelector('.perma-header__title');
       if (permaTitle) {
         permaTitle.style.display = 'flex';
@@ -487,7 +490,7 @@
 
     // Fallback to text element
     const textEl = todoEl.querySelector(
-      '.todo__content > a, .todo_name, .todo__name, .checkbox__text, .step__text, .step__title, .perma-header__title > a, .kanban-card__title, .card__title, a[href*="/card_tables/cards/"]'
+      '.perma-header__title, .todo__content > a, .todo_name, .todo__name, .checkbox__text, .step__text, .step__title, .kanban-card__title, .card__title, a[href*="/card_tables/cards/"]'
     );
     
     let raw = '';
