@@ -235,8 +235,13 @@
     }
 
     const url = window.location.href;
-    // Do not inject timer buttons on the Project Home page or Schedule pages
-    if (/\/projects\/\d+\/?$/.test(url) || /\/schedules\/\d+/.test(url)) {
+    // Do not inject timer buttons on the Project Home page, Schedule, Activity, or Timeline pages
+    if (
+      /\/projects\/\d+\/?$/.test(url) || 
+      /\/schedules\/\d+/.test(url) ||
+      /\/activity/.test(url) ||
+      /\/timeline/.test(url)
+    ) {
       return;
     }
 
