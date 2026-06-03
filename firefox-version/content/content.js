@@ -1629,9 +1629,9 @@
       <td><input type="text" class="bctl-input bctl-edit-task" value="${(curTask || '').replace(/"/g, '&quot;')}" style="width:100%;" /></td>
       <td><input type="text" class="bctl-input bctl-edit-notes" value="${(curNotes || '').replace(/"/g, '&quot;')}" style="width:100%;" /></td>
       <td><input type="text" class="bctl-input bctl-edit-hours" value="${curHHMM}" placeholder="00:00" title="Format: Jam:Menit" style="width:70px;" /></td>
-      <td colspan="2" style="display:flex;gap:6px;">
-        <button class="bctl-btn bctl-btn-primary bctl-edit-save" style="padding:2px 10px;font-size:11px;height:auto;">💾 Save</button>
-        <button class="bctl-btn bctl-btn-secondary bctl-edit-cancel" style="padding:2px 10px;font-size:11px;height:auto;">Cancel</button>
+      <td style="display:flex;gap:6px;">
+        <button class="bctl-btn bctl-btn-primary bctl-edit-save" style="padding:4px 14px;font-size:12px;height:auto;">Save</button>
+        <button class="bctl-btn bctl-btn-secondary bctl-edit-cancel" style="padding:4px 14px;font-size:12px;height:auto;background:transparent;border:1px solid var(--bctl-border);">Cancel</button>
       </td>
     `;
 

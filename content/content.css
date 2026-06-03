@@ -295,10 +295,10 @@
 }
 
 .bctl-modal.bctl-project-modal {
-  max-width: 95vw;
-  width: 1400px;
-  max-height: 95vh;
-  height: 95vh;
+  max-width: 90vw;
+  width: 1000px;
+  max-height: 85vh;
+  height: fit-content;
 }
 
 .bctl-modal-overlay.bctl-closing .bctl-modal {
