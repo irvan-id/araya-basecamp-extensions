@@ -1573,7 +1573,7 @@
             <td>${entry.task || '-'}</td>
             <td>${entry.notes || '-'}</td>
             <td><strong>${formatHoursDisplay(entry.hours)}</strong></td>
-            <td>${isOwner ? '<button class="bctl-btn bctl-btn-primary bctl-btn-edit" data-entry-id="' + entry.id + '" data-entry-hours="' + entry.hours + '" data-entry-notes="' + (entry.notes || '').replace(/"/g, '&quot;') + '" data-entry-task="' + (entry.task || '').replace(/"/g, '&quot;') + '" style="padding:4px 8px;font-size:12px;height:auto;" title="Edit Entry">✏️</button>' : ''}</td>
+            <td>${isOwner ? '<button class="bctl-btn bctl-btn-primary bctl-btn-edit" data-entry-id="' + entry.id + '" data-entry-hours="' + entry.hours + '" data-entry-notes="' + (entry.notes || '').replace(/"/g, '&quot;') + '" data-entry-task="' + (entry.task || '').replace(/"/g, '&quot;') + '" data-entry-date="' + date + '" data-entry-user="' + entry.user + '" style="padding:4px 8px;font-size:12px;height:auto;" title="Edit Entry">✏️</button>' : ''}</td>
           `;
           tbody.appendChild(tr);
         });
@@ -1585,7 +1585,9 @@
             const curHours = parseFloat(btn.dataset.entryHours);
             const curNotes = btn.dataset.entryNotes;
             const curTask = btn.dataset.entryTask;
-            openEditEntryInline(btn.closest('tr'), entryId, curHours, curNotes, curTask);
+            const curDate = btn.dataset.entryDate;
+            const curUser = btn.dataset.entryUser;
+            openEditEntryInline(btn.closest('tr'), entryId, curHours, curNotes, curTask, curDate, curUser);
           });
         });
         
@@ -1618,16 +1620,17 @@
   /**
    * Replace a table row with inline edit fields for task, notes & hours.
    */
-  function openEditEntryInline(tr, entryId, curHours, curNotes, curTask) {
+  function openEditEntryInline(tr, entryId, curHours, curNotes, curTask, curDate, curUser) {
     const originalHTML = tr.innerHTML;
     const h = Math.floor(Math.round(curHours * 60) / 60);
     const m = Math.round(curHours * 60) % 60;
     const curHHMM = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 
     tr.innerHTML = `
-      <td colspan="2" style="font-size:12px;color:var(--bctl-text-secondary);">Editing...</td>
-      <td><input type="text" class="bctl-input bctl-edit-task" value="${(curTask || '').replace(/"/g, '&quot;')}" style="width:100%;" /></td>
-      <td><input type="text" class="bctl-input bctl-edit-notes" value="${(curNotes || '').replace(/"/g, '&quot;')}" style="width:100%;" /></td>
+      <td style="white-space:nowrap; color: var(--bctl-text-secondary); font-size:12px; opacity:0.5;">${curDate}</td>
+      <td style="opacity:0.5;"><strong>${curUser}</strong></td>
+      <td><input type="text" class="bctl-input bctl-edit-task" value="${(curTask || '').replace(/"/g, '&quot;')}" style="width:100%; box-sizing:border-box; min-width:150px" /></td>
+      <td><input type="text" class="bctl-input bctl-edit-notes" value="${(curNotes || '').replace(/"/g, '&quot;')}" style="width:100%; box-sizing:border-box; min-width:200px" /></td>
       <td><input type="text" class="bctl-input bctl-edit-hours" value="${curHHMM}" placeholder="00:00" title="Format: Jam:Menit" style="width:70px;" /></td>
       <td style="display:flex;gap:6px;">
         <button class="bctl-btn bctl-btn-primary bctl-edit-save" style="padding:4px 8px;font-size:12px;height:auto;" title="Save">💾</button>
@@ -1641,7 +1644,7 @@
       const editBtn = tr.querySelector('.bctl-btn-edit');
       if (editBtn) {
         editBtn.addEventListener('click', () => {
-          openEditEntryInline(tr, editBtn.dataset.entryId, parseFloat(editBtn.dataset.entryHours), editBtn.dataset.entryNotes, editBtn.dataset.entryTask);
+          openEditEntryInline(tr, editBtn.dataset.entryId, parseFloat(editBtn.dataset.entryHours), editBtn.dataset.entryNotes, editBtn.dataset.entryTask, editBtn.dataset.entryDate, editBtn.dataset.entryUser);
         });
       }
     });
