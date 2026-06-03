@@ -437,16 +437,38 @@
    */
   function getProjectName(todoEl = null) {
     if (todoEl) {
-      // 1. Check if we're inside a grouped container (used in My Assignments, Everything, etc.)
-      const groupEl = todoEl.closest('section, article, .assignments__bucket, .bucket-group');
-      if (groupEl && groupEl !== document.body && groupEl.tagName !== 'MAIN') {
-        const headerLink = groupEl.querySelector('header a, h2 a, h3 a, h4 a, a.project-link');
-        if (headerLink && (headerLink.href.includes('/projects/') || headerLink.href.includes('/buckets/'))) {
-          // Avoid grabbing task-specific links
-          if (!headerLink.href.includes('/todos/') && !headerLink.href.includes('/card_tables/') && !headerLink.href.includes('/schedule_entries/')) {
+      // 1. Check inside the task itself (Basecamp often puts a project link in the task's meta/parent area)
+      const internalLink = Array.from(todoEl.querySelectorAll('a[href*="/projects/"], a[href*="/buckets/"]'))
+        .find(a => !a.href.includes('/todos/') && !a.href.includes('/card_tables/') && !a.href.includes('/schedule_entries/') && !a.href.includes('/messages/'));
+      if (internalLink && internalLink.textContent.trim()) {
+        return internalLink.textContent.trim();
+      }
+
+      // 2. Walk up the DOM to find a grouping container or a preceding header
+      let current = todoEl;
+      while (current && current !== document.body && current.tagName !== 'MAIN') {
+        // Check previous siblings for a header (if lists aren't wrapped in sections)
+        let prev = current.previousElementSibling;
+        while (prev) {
+          if (prev.matches('header, h2, h3, h4, h5, .bucket__header, .assignments__bucket-name')) {
+            const link = prev.querySelector('a[href*="/projects/"], a[href*="/buckets/"]') || 
+                         (prev.matches('a[href*="/projects/"], a[href*="/buckets/"]') ? prev : null);
+            if (link && !link.href.includes('/todos/')) {
+              return link.textContent.trim();
+            }
+          }
+          prev = prev.previousElementSibling;
+        }
+
+        // Check if the current container has a header
+        if (current.matches('section, article, .assignments__bucket, .bucket, .bucket-group')) {
+          const headerLink = Array.from(current.querySelectorAll('header a, h2 a, h3 a, h4 a, .bucket__name a, a.project-link'))
+            .find(a => (a.href.includes('/projects/') || a.href.includes('/buckets/')) && !a.href.includes('/todos/'));
+          if (headerLink && headerLink.textContent.trim()) {
             return headerLink.textContent.trim();
           }
         }
+        current = current.parentElement;
       }
     }
 
