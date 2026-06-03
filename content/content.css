@@ -294,6 +294,13 @@
   flex-direction: column;
 }
 
+.bctl-modal.bctl-project-modal {
+  max-width: 95vw;
+  width: 1400px;
+  max-height: 95vh;
+  height: 95vh;
+}
+
 .bctl-modal-overlay.bctl-closing .bctl-modal {
   animation: bctl-slideDown 0.18s ease forwards;
 }
