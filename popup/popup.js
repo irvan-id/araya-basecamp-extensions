@@ -33,7 +33,7 @@ const DOM = {
   testResult: document.getElementById('testResult'),
 
   // Footer
-  openSpreadsheetBtn: document.getElementById('openSpreadsheetBtn'),
+  openBasecampBtn: document.getElementById('openBasecampBtn'),
   versionBadge: document.getElementById('versionBadge'),
 
   // Toast
@@ -387,25 +387,32 @@ function setButtonLoading(button, isLoading) {
 }
 
 /**
- * Open the linked Google Spreadsheet in a new tab.
+ * Open Basecamp to the last used account.
  */
-async function openSpreadsheet() {
+async function openBasecamp() {
   try {
-    const { spreadsheetUrl, appsScriptUrl } = await chrome.storage.sync.get([
-      'spreadsheetUrl',
-      'appsScriptUrl',
-    ]);
-
-    const url = spreadsheetUrl || appsScriptUrl;
-
-    if (url) {
-      chrome.tabs.create({ url });
-    } else {
-      showToast('No spreadsheet URL configured', 'error');
+    const data = await chrome.storage.local.get(['timeEntries']);
+    const entries = data.timeEntries || [];
+    
+    let basecampUrl = 'https://3.basecamp.com/';
+    
+    if (entries.length > 0) {
+      const lastEntry = entries[0];
+      if (lastEntry.url) {
+        // Extract the base path: e.g. https://3.basecamp.com/5526083
+        const match = lastEntry.url.match(/^(https:\/\/[^/]+\/\d+)/);
+        if (match) {
+          basecampUrl = match[1];
+        } else {
+          basecampUrl = lastEntry.url; // Fallback
+        }
+      }
     }
+    
+    chrome.tabs.create({ url: basecampUrl });
   } catch (err) {
-    console.error('[Popup] Failed to open spreadsheet:', err);
-    showToast('Could not open spreadsheet', 'error');
+    console.error('[Popup] Failed to open Basecamp:', err);
+    chrome.tabs.create({ url: 'https://3.basecamp.com/' });
   }
 }
 
@@ -423,8 +430,8 @@ function bindEvents() {
   // Test connection
   DOM.testConnectionBtn.addEventListener('click', testConnection);
 
-  // Open spreadsheet
-  DOM.openSpreadsheetBtn.addEventListener('click', openSpreadsheet);
+  // Open Basecamp
+  DOM.openBasecampBtn.addEventListener('click', openBasecamp);
 }
 
 /* ==========================================================================
