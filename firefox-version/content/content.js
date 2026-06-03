@@ -773,7 +773,7 @@
         const elapsed = getElapsedSeconds();
         stopTimer();
         timerHint.textContent = `Stopped at ${formatTime(elapsed)}`;
-        const totalMinutes = Math.max(1, Math.ceil(elapsed / 60));
+        const totalMinutes = Math.round(elapsed / 60);
         const h = Math.floor(totalMinutes / 60);
         const m = totalMinutes % 60;
         hoursInput.value = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
@@ -830,7 +830,7 @@
         return;
       }
       if (!hours || hours <= 0 || isNaN(hours)) {
-        showToast('Tolong masukkan durasi dengan format 00:00 (Jam:Menit).', 'error');
+        showToast('Tunggu hingga 1 menit untuk bisa menyimpan log timer.', 'error');
         return;
       }
       const notes =
