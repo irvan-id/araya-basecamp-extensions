@@ -275,6 +275,13 @@
             if (el.classList.contains('checkbox--todo') && el.closest('.recordable--todo')) {
               return;
             }
+
+            // Ignore items actively being created or edited (they contain text inputs)
+            if (!el.classList.contains('recordable--todo') && !el.classList.contains('recordable--kanban-card')) {
+              if (el.querySelector('input[type="text"], input[placeholder], textarea')) {
+                return;
+              }
+            }
             
             seen.add(el);
             results.push(el);
