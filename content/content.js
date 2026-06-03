@@ -222,6 +222,11 @@
    * next to each one that hasn't been augmented yet.
    */
   function injectButtons() {
+    const pageTypeMeta = document.querySelector('meta[name="current-page-type"]');
+    if (pageTypeMeta && pageTypeMeta.content === 'home') {
+      return; // Do not inject timer buttons on the home page
+    }
+
     const todos = findTodoElements();
     todos.forEach((todoEl) => {
       try {
