@@ -27,6 +27,7 @@ const DOM = {
   userName: document.getElementById('userName'),
   appsScriptUrl: document.getElementById('appsScriptUrl'),
   apiKey: document.getElementById('apiKey'),
+  themeSelect: document.getElementById('themeSelect'),
   saveSettingsBtn: document.getElementById('saveSettingsBtn'),
   testConnectionBtn: document.getElementById('testConnectionBtn'),
   testResult: document.getElementById('testResult'),
@@ -50,7 +51,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadTimeEntries();
   checkConnectionStatus();
   bindEvents();
+
+  // Watch for system theme changes
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    chrome.storage.sync.get('theme', (data) => {
+      if (!data.theme || data.theme === 'system') {
+        applyTheme('system');
+      }
+    });
+  });
 });
+
+function applyTheme(theme) {
+  let activeTheme = theme;
+  if (theme === 'system') {
+    activeTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  document.documentElement.setAttribute('data-theme', activeTheme);
+}
 
 /**
  * Show the extension version from the manifest.
@@ -78,11 +96,16 @@ async function loadSettings() {
       'appsScriptUrl',
       'spreadsheetUrl',
       'apiKey',
+      'theme',
     ]);
 
     if (data.userName) DOM.userName.value = data.userName;
     if (data.appsScriptUrl) DOM.appsScriptUrl.value = data.appsScriptUrl;
     if (data.apiKey) DOM.apiKey.value = data.apiKey;
+    
+    const theme = data.theme || 'system';
+    DOM.themeSelect.value = theme;
+    applyTheme(theme);
   } catch (err) {
     console.error('[Popup] Failed to load settings:', err);
   }
@@ -95,9 +118,11 @@ async function saveSettings() {
   const userName = DOM.userName.value.trim();
   const appsScriptUrl = DOM.appsScriptUrl.value.trim();
   const apiKey = DOM.apiKey.value.trim();
+  const theme = DOM.themeSelect.value;
 
   try {
-    await chrome.storage.sync.set({ userName, appsScriptUrl, apiKey });
+    await chrome.storage.sync.set({ userName, appsScriptUrl, apiKey, theme });
+    applyTheme(theme);
     showToast('Settings saved ✓', 'success');
     checkConnectionStatus();
   } catch (err) {
