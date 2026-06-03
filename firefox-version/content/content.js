@@ -35,6 +35,7 @@
     '.step__item', // Basecamp 4 Subtasks
     '.recordable--todo',
     '.recordable--kanban-card', // Kanban Card Detail
+    'article.event--show', // Schedule Event Detail
     '[data-drag-and-drop-type="kanban_card"]', // Kanban Card Board Wrapper
     '.kanban-card', // Kanban Card Board View
     '.card', // Generic Card
@@ -69,7 +70,7 @@
   let activeTimer = null;
 
   /** Remember the last selected tab mode ('manual' or 'timer') */
-  let lastSelectedMode = 'manual';
+  let lastSelectedMode = 'timer';
 
   /** Interval id for the running stopwatch UI update. */
   let timerIntervalId = null;
@@ -81,6 +82,7 @@
   async function init() {
     try {
       await loadCachedData();
+      applyTheme();
       detectUserProfile();
       injectProjectButton();
       injectButtons();
@@ -119,6 +121,26 @@
   /* --------------------------------------------------------
      2. Profile Detection
      -------------------------------------------------------- */
+
+  
+  function applyTheme() {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+      chrome.storage.sync.get('theme', (data) => {
+        let theme = data.theme || 'system';
+        if (theme === 'system') {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bctl-theme', theme);
+      });
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        chrome.storage.sync.get('theme', (data) => {
+          if (!data.theme || data.theme === 'system') {
+            document.documentElement.setAttribute('data-bctl-theme', e.matches ? 'dark' : 'light');
+          }
+        });
+      });
+    }
+  }
 
   function detectUserProfile() {
     try {
@@ -230,7 +252,18 @@
   function injectButtons() {
     const pageTypeMeta = document.querySelector('meta[name="current-page-type"]');
     if (pageTypeMeta && pageTypeMeta.content === 'home') {
-      return; // Do not inject timer buttons on the home page
+      return; // Do not inject timer buttons on the global home page
+    }
+
+    const url = window.location.href;
+    // Do not inject timer buttons on the Project Home page, Schedule, Activity, or Timeline pages
+    if (
+      /\/projects\/\d+\/?$/.test(url) || 
+      /\/schedules\/\d+/.test(url) ||
+      /\/activity/.test(url) ||
+      /\/timeline/.test(url)
+    ) {
+      return;
     }
 
     const todos = findTodoElements();
@@ -259,12 +292,25 @@
       try {
         document.querySelectorAll(sel).forEach((el) => {
           if (!seen.has(el)) {
-            // Ignore completed to-dos and subtasks
             if (
               el.closest('.completed') || 
               el.classList.contains('completed') || 
               el.classList.contains('step--completed')
             ) return;
+
+            // If the element is INSIDE a detail view container but is NOT a subtask, ignore it.
+            // This firmly prevents duplicate icons on the detail page when multiple selectors match inner wrappers.
+            const recordable = el.closest('.recordable--todo, .recordable--kanban-card');
+            if (recordable && el !== recordable && !el.classList.contains('step') && !el.classList.contains('step__item')) {
+              return;
+            }
+
+            // Ignore items actively being created or edited (they contain text inputs)
+            if (!el.classList.contains('recordable--todo') && !el.classList.contains('recordable--kanban-card')) {
+              if (el.querySelector('input[type="text"], input[placeholder], textarea')) {
+                return;
+              }
+            }
             
             seen.add(el);
             results.push(el);
@@ -337,24 +383,23 @@
       return true;
     };
 
-    // 1. Detail View Main To-do Header or Kanban Card
-    if (todoEl.classList.contains('recordable--todo') || todoEl.classList.contains('recordable--kanban-card')) {
-      if (todoEl.classList.contains('recordable--kanban-card')) {
-        const permaTitle = todoEl.querySelector('.perma-header__title');
-        if (permaTitle) {
-          permaTitle.style.display = 'flex';
-          permaTitle.style.alignItems = 'center';
-          permaTitle.style.gap = '12px';
-          return appendBtn(permaTitle);
-        }
-        return false; // Did not inject yet, turbo frame is loading
+    // 1. Detail View Main Header (To-do, Kanban Card, Schedule Event)
+    if (todoEl.classList.contains('recordable--todo') || 
+        todoEl.classList.contains('recordable--kanban-card') || 
+        todoEl.classList.contains('event--show')) {
+      const permaTitle = todoEl.querySelector('.perma-header__title');
+      if (permaTitle) {
+        permaTitle.style.display = 'flex';
+        permaTitle.style.alignItems = 'center';
+        permaTitle.style.gap = '12px';
+        
+        // Scale up the icon to better match the large H1 text
+        btn.style.transform = 'scale(1.35)';
+        btn.style.transformOrigin = 'left center';
+        
+        return appendBtn(permaTitle);
       }
-      
-      const permaFlex = todoEl.querySelector('.perma-header__content .flex.items-center');
-      if (permaFlex) {
-        return appendBtn(permaFlex);
-      }
-      return false; // Did not inject yet
+      return false; // Did not inject yet, turbo frame is loading
     }
 
     // 2. Subtasks (Steps)
@@ -408,17 +453,64 @@
      5. Context Extraction Helpers
      -------------------------------------------------------- */
 
-  /**
-   * Extract the project name from breadcrumbs, headers or title.
-   */
-  function getProjectName() {
-    // 1. Check meta tags (Basecamp often provides the exact name here)
+  function getProjectName(todoEl = null) {
+    // 0. Strongest guarantee for detail pages (To-dos, Cards, Schedules)
+    const breadcrumb = document.querySelector('.perma-toolbar__breadcrumb--bucket strong, .perma-toolbar__breadcrumb--bucket');
+    if (breadcrumb && breadcrumb.textContent.trim()) {
+      return breadcrumb.textContent.replace(/\s*G\s*$/, '').trim();
+    }
+
+    const isProjectLink = (href) => /\/(projects|buckets)\/\d+(\/)?(\?.*|#.*)?$/.test(href);
+
+    if (todoEl) {
+      // 1. Basecamp explicitly provides the project name in this element on some list views!
+      const ancestry = todoEl.querySelector('.assignment__ancestry');
+      if (ancestry && ancestry.textContent.trim()) {
+        return ancestry.textContent.trim();
+      }
+
+      // 2. Check inside the task itself for a project link (exclude task/edit/list links)
+      const internalLink = Array.from(todoEl.querySelectorAll('a[href*="/projects/"], a[href*="/buckets/"]'))
+        .find(a => isProjectLink(a.href) && !a.classList.contains('task-details__edit-button'));
+      if (internalLink && internalLink.textContent.trim()) {
+        return internalLink.textContent.trim();
+      }
+
+      // 3. Walk up the DOM to find a grouping container or a preceding header
+      let current = todoEl;
+      while (current && current !== document.body && current.tagName !== 'MAIN') {
+        // Check previous siblings for a header (if lists aren't wrapped in sections)
+        let prev = current.previousElementSibling;
+        while (prev) {
+          if (prev.matches('header, h2, h3, h4, h5, .bucket__header, .assignments__bucket-name')) {
+            const link = prev.querySelector('a[href*="/projects/"], a[href*="/buckets/"]') || 
+                         (prev.matches('a[href*="/projects/"], a[href*="/buckets/"]') ? prev : null);
+            if (link && isProjectLink(link.href)) {
+              return link.textContent.trim();
+            }
+          }
+          prev = prev.previousElementSibling;
+        }
+
+        // Check if the current container has a header (including 'everything-bucket' for My Assignments)
+        if (current.matches('section, article, .assignments__bucket, .bucket, .bucket-group, .everything-bucket')) {
+          const headerLink = Array.from(current.querySelectorAll('header a, h2 a, h3 a, h4 a, .bucket__name a, a.project-link'))
+            .find(a => isProjectLink(a.href));
+          if (headerLink && headerLink.textContent.trim()) {
+            return headerLink.textContent.trim();
+          }
+        }
+        current = current.parentElement;
+      }
+    }
+
+    // 2. Check meta tags (Basecamp often provides the exact name here)
     const metaBucket = document.querySelector('meta[name="current-bucket-name"]');
     if (metaBucket && metaBucket.getAttribute('content')) {
       return metaBucket.getAttribute('content').trim();
     }
 
-    // 2. Breadcrumb selectors used by Basecamp 3/4
+    // 4. Breadcrumb selectors used by Basecamp 3/4
     const breadcrumbSelectors = [
       '.breadcrumb a',
       '.breadcrumbs a',
@@ -427,6 +519,7 @@
       '[data-role="project-name"]',
       'h1.project-name',
       '.perma-toolbar a[href*="/projects/"]',
+      '.perma-toolbar a[href*="/buckets/"]',
     ];
 
     for (const sel of breadcrumbSelectors) {
@@ -471,7 +564,7 @@
 
     // Fallback to text element
     const textEl = todoEl.querySelector(
-      '.todo__content > a, .todo_name, .todo__name, .checkbox__text, .step__text, .step__title, .perma-header__title > a, .kanban-card__title, .card__title, a[href*="/card_tables/cards/"]'
+      '.perma-header__title, .todo__content > a, .todo_name, .todo__name, .checkbox__text, .step__text, .step__title, .kanban-card__title, .card__title, a[href*="/card_tables/cards/"]'
     );
     
     let raw = '';
@@ -522,7 +615,7 @@
     closeModal();
 
     const taskName = getTaskName(todoEl);
-    const projectName = getProjectName();
+    const projectName = getProjectName(todoEl);
     const taskUrl = getTaskUrl(todoEl);
 
     // Overlay
@@ -570,7 +663,8 @@
     );
 
     // Mode tabs (Manual vs Timer)
-    const { tabs, manualSection, timerSection } = buildModeTabs();
+    const { tabs, manualSection, timerSection, manualTab } = buildModeTabs(taskUrl);
+
     body.appendChild(tabs);
 
     // ── Manual entry section ──
@@ -587,7 +681,7 @@
     notesManual.placeholder = 'What did you work on?';
 
     manualSection.appendChild(buildFormGroup('Hours', hoursInput));
-    manualSection.appendChild(buildFormGroup('Notes', notesManual));
+    manualSection.appendChild((() => { const g = buildFormGroup('Notes', notesManual); g.classList.add('bctl-notes-group'); return g; })());
     body.appendChild(manualSection);
 
     // ── Timer section ──
@@ -603,47 +697,85 @@
     timerHint.className = 'bctl-timer-hint';
     timerHint.textContent = 'Click Start to begin tracking';
 
+    const pauseBtn = document.createElement('button');
+    pauseBtn.type = 'button';
+    pauseBtn.className = 'bctl-btn bctl-btn-pause';
+    pauseBtn.style.display = 'none';
+
     const timerBtn = document.createElement('button');
     timerBtn.type = 'button';
     timerBtn.className = 'bctl-btn bctl-btn-timer';
-    timerBtn.innerHTML = '▶ Start';
 
-    // If this task already has an active timer, show running state
-    if (activeTimer && activeTimer.taskUrl === taskUrl) {
-      const elapsed = getElapsedSeconds();
-      timerTime.innerHTML = formatTimeHTML(elapsed);
-      timerTime.classList.add('bctl-running');
-      timerBtn.classList.add('bctl-active');
-      timerBtn.innerHTML = '■ Stop';
-      timerHint.textContent = 'Timer is running…';
-      startModalTimerDisplay(timerTime);
-    }
+    const btnContainer = document.createElement('div');
+    btnContainer.style.display = 'flex';
+    btnContainer.style.gap = '8px';
+    btnContainer.style.justifyContent = 'center';
+    btnContainer.style.marginTop = '12px';
+    btnContainer.appendChild(pauseBtn);
+    btnContainer.appendChild(timerBtn);
 
-    timerBtn.addEventListener('click', () => {
+    function updateTimerUIState() {
       if (activeTimer && activeTimer.taskUrl === taskUrl) {
-        // Stop the timer
         const elapsed = getElapsedSeconds();
-        stopTimer();
+        timerTime.innerHTML = formatTimeHTML(elapsed);
+        timerTime.classList.add('bctl-running');
+        
+        timerBtn.classList.add('bctl-active');
+        timerBtn.innerHTML = '■ Stop';
+        
+        pauseBtn.style.display = '';
+        if (activeTimer.status === 'paused') {
+          pauseBtn.innerHTML = '▶ Resume';
+          timerHint.textContent = 'Timer is paused';
+        } else {
+          pauseBtn.innerHTML = '⏸ Pause';
+          timerHint.textContent = 'Timer is running…';
+        }
+        startModalTimerDisplay(timerTime);
+        
+        manualTab.disabled = true;
+        manualTab.style.opacity = '0.5';
+        manualTab.title = 'Timer is running';
+      } else {
         timerTime.classList.remove('bctl-running');
         timerBtn.classList.remove('bctl-active');
         timerBtn.innerHTML = '▶ Start';
+        pauseBtn.style.display = 'none';
+        timerHint.textContent = 'Click Start to begin tracking';
+        stopModalTimerDisplay();
+        
+        manualTab.disabled = false;
+        manualTab.style.opacity = '1';
+        manualTab.title = '';
+      }
+    }
+
+    pauseBtn.addEventListener('click', () => {
+      if (activeTimer && activeTimer.status === 'paused') {
+        resumeTimer();
+      } else {
+        pauseTimer();
+      }
+      updateTimerUIState();
+    });
+
+    timerBtn.addEventListener('click', () => {
+      if (activeTimer && activeTimer.taskUrl === taskUrl) {
+        const elapsed = getElapsedSeconds();
+        stopTimer();
         timerHint.textContent = `Stopped at ${formatTime(elapsed)}`;
         hoursInput.value = (elapsed / 3600).toFixed(2);
       } else {
-        // Only one timer at a time
         if (activeTimer) {
           showToast('Another timer is already running. Stop it first.', 'error');
           return;
         }
         startTimer(taskUrl, taskName, projectName);
-        timerTime.classList.add('bctl-running');
-        timerBtn.classList.add('bctl-active');
-        timerBtn.innerHTML = '■ Stop';
-        timerHint.textContent = 'Timer is running…';
-        startModalTimerDisplay(timerTime);
-        updateAllTimerButtons();
       }
+      updateTimerUIState();
     });
+
+    updateTimerUIState();
 
     const notesTimer = document.createElement('textarea');
     notesTimer.className = 'bctl-textarea';
@@ -651,9 +783,9 @@
 
     timerDisplay.appendChild(timerTime);
     timerDisplay.appendChild(timerHint);
-    timerDisplay.appendChild(timerBtn);
+    timerDisplay.appendChild(btnContainer);
     timerSection.appendChild(timerDisplay);
-    timerSection.appendChild(buildFormGroup('Notes', notesTimer));
+    timerSection.appendChild((() => { const g = buildFormGroup('Notes', notesTimer); g.classList.add('bctl-notes-group'); return g; })());
     body.appendChild(timerSection);
 
     // ── Footer ──
@@ -671,6 +803,11 @@
     saveBtn.className = 'bctl-btn bctl-btn-primary';
     saveBtn.textContent = 'Save';
     saveBtn.addEventListener('click', async () => {
+
+      if (lastSelectedMode === 'timer' && activeTimer && activeTimer.taskUrl === taskUrl) {
+        showToast('Tolong berhentikan timer terlebih dahulu (Stop) sebelum menyimpan.', 'error');
+        return;
+      }
       const hours = parseFloat(hoursInput.value);
       if (!hours || hours <= 0) {
         showToast('Please enter hours greater than 0.', 'error');
@@ -729,12 +866,7 @@
       lastSelectedMode = mode;
     }
 
-    // Set initial tab based on state or active timer
-    if (activeTimer && activeTimer.taskUrl === taskUrl) {
-      switchTab('timer');
-    } else {
-      switchTab(lastSelectedMode);
-    }
+    switchTab('timer');
   }
 
   /** Close and animate-out the modal. */
@@ -785,28 +917,28 @@
     return card;
   }
 
-  function buildModeTabs() {
+  function buildModeTabs(currentTaskUrl) {
     const tabs = document.createElement('div');
     tabs.className = 'bctl-mode-tabs';
 
     const manualTab = document.createElement('button');
     manualTab.type = 'button';
-    manualTab.className = 'bctl-mode-tab bctl-active';
+    manualTab.className = 'bctl-mode-tab';
     manualTab.dataset.mode = 'manual';
     manualTab.innerHTML = '✏️ Manual';
 
     const timerTab = document.createElement('button');
     timerTab.type = 'button';
-    timerTab.className = 'bctl-mode-tab';
+    timerTab.className = 'bctl-mode-tab bctl-active';
     timerTab.dataset.mode = 'timer';
     timerTab.innerHTML = '⏱️ Timer';
 
     const manualSection = document.createElement('div');
     manualSection.className = 'bctl-manual-section';
+    manualSection.style.display = 'none';
 
     const timerSection = document.createElement('div');
     timerSection.className = 'bctl-timer-section';
-    timerSection.style.display = 'none';
 
     manualTab.addEventListener('click', () => {
       manualTab.classList.add('bctl-active');
@@ -824,10 +956,18 @@
       lastSelectedMode = 'timer';
     });
 
-    tabs.appendChild(manualTab);
+    // Make Timer tab first
     tabs.appendChild(timerTab);
+    tabs.appendChild(manualTab);
 
-    return { tabs, manualSection, timerSection };
+    // Disable manual tab if timer is running
+    if (activeTimer && activeTimer.taskUrl === currentTaskUrl) {
+      manualTab.disabled = true;
+      manualTab.style.opacity = '0.5';
+      manualTab.title = 'Timer is running';
+    }
+
+    return { tabs, manualSection, timerSection, manualTab };
   }
 
   function buildFormGroup(labelText, inputEl) {
@@ -894,11 +1034,29 @@
       startedAt: Date.now(),
       user: currentUserName,
       pageUrl: getCurrentUrl(),
+      accumulatedSeconds: 0,
+      status: 'running',
     };
     persistTimerState();
   }
 
-  /** Stop the running timer. Returns elapsed seconds. */
+  function pauseTimer() {
+    if (!activeTimer || activeTimer.status === 'paused') return;
+    activeTimer.accumulatedSeconds = getElapsedSeconds();
+    activeTimer.status = 'paused';
+    activeTimer.startedAt = null;
+    persistTimerState();
+    updateAllTimerButtons();
+  }
+
+  function resumeTimer() {
+    if (!activeTimer || activeTimer.status === 'running') return;
+    activeTimer.status = 'running';
+    activeTimer.startedAt = Date.now();
+    persistTimerState();
+    updateAllTimerButtons();
+  }
+
   function stopTimer() {
     const elapsed = getElapsedSeconds();
     activeTimer = null;
@@ -908,23 +1066,21 @@
     return elapsed;
   }
 
-  /** Get seconds elapsed on the active timer (0 if none). */
   function getElapsedSeconds() {
     if (!activeTimer) return 0;
-    return Math.floor((Date.now() - activeTimer.startedAt) / 1000);
+    let seconds = activeTimer.accumulatedSeconds || 0;
+    if (activeTimer.status !== 'paused' && activeTimer.startedAt) {
+      seconds += Math.floor((Date.now() - activeTimer.startedAt) / 1000);
+    }
+    return seconds;
   }
 
-  /** Save timer state to storage for cross-page persistence. */
   function persistTimerState() {
     chrome.storage.local
       .set({ [STORAGE_KEYS.TIMER_STATE]: activeTimer })
       .catch(() => {});
   }
 
-  /**
-   * On page load, restore a previously running timer and
-   * re-attach the inline elapsed display to the matching button.
-   */
   function restoreRunningTimer() {
     if (!activeTimer) return;
     updateAllTimerButtons();
@@ -1388,11 +1544,12 @@
         });
         
         // Total row
+        const formattedTotal = response.totalHours ? parseFloat(Number(response.totalHours).toFixed(2)) : 0;
         const totalTr = document.createElement('tr');
         totalTr.style.background = 'var(--bctl-surface-alt)';
         totalTr.innerHTML = `
           <td colspan="4" style="text-align:right; text-transform:uppercase; font-size:11px; font-weight:700; color:var(--bctl-text-secondary);">Total (Current Month)</td>
-          <td style="font-size:15px; font-weight:700; color:var(--bctl-green-700);">${response.totalHours || 0}h</td>
+          <td style="font-size:15px; font-weight:700; color:var(--bctl-green-700);">${formattedTotal}h</td>
         `;
         tbody.appendChild(totalTr);
       } else {
@@ -1406,7 +1563,8 @@
       
       // Update header with total
       if (response.totalHours !== undefined) {
-        title.innerHTML = `<span class="bctl-modal-title-icon">⏱️</span> ${projectName} Timesheet &nbsp;<span class="bctl-badge bctl-badge--has-time" style="font-size:12px; height:24px; padding:0 8px">${response.totalHours}h total</span>`;
+        const formattedTotal = parseFloat(Number(response.totalHours).toFixed(2));
+        title.innerHTML = `<span class="bctl-modal-title-icon">⏱️</span> ${projectName} Timesheet &nbsp;<span class="bctl-badge bctl-badge--has-time" style="font-size:12px; height:24px; padding:0 8px">${formattedTotal}h total</span>`;
       }
     });
   }

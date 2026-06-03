@@ -13,6 +13,12 @@ const DOM = {
   statusDot: document.getElementById('statusDot'),
   statusText: document.getElementById('statusText'),
 
+  // Running Timer
+  runningTimerSection: document.getElementById('runningTimerSection'),
+  runningTimerProject: document.getElementById('runningTimerProject'),
+  runningTimerTask: document.getElementById('runningTimerTask'),
+  runningTimerTime: document.getElementById('runningTimerTime'),
+
   // Summary
   todayHours: document.getElementById('todayHours'),
   weekHours: document.getElementById('weekHours'),
@@ -45,10 +51,13 @@ const DOM = {
 /* ==========================================================================
    Initialization
    ========================================================================== */
+let popupTimerInterval = null;
+
 document.addEventListener('DOMContentLoaded', async () => {
   displayVersion();
   await loadSettings();
   await loadTimeEntries();
+  await loadActiveTimer();
   checkConnectionStatus();
   bindEvents();
 
@@ -217,7 +226,54 @@ function setStatusDisconnected(message = 'Not configured') {
    ========================================================================== */
 
 /**
- * Load cached time entries from chrome.storage.local and update the UI.
+ * Load and display the currently running timer if it exists.
+ */
+async function loadActiveTimer() {
+  const result = await chrome.storage.local.get('bctl_timer_state');
+  const activeTimer = result.bctl_timer_state;
+
+  if (popupTimerInterval) {
+    clearInterval(popupTimerInterval);
+    popupTimerInterval = null;
+  }
+
+  if (activeTimer) {
+    DOM.runningTimerSection.style.display = 'block';
+    
+    // Set text
+    DOM.runningTimerProject.textContent = activeTimer.projectName || 'Unknown Project';
+    DOM.runningTimerTask.textContent = activeTimer.taskName || 'Unknown Task';
+    DOM.runningTimerTask.title = activeTimer.taskName || '';
+    
+    // Set link
+    const url = activeTimer.pageUrl || activeTimer.taskUrl || '#';
+    DOM.runningTimerProject.href = url;
+
+    // Update time every second
+    const updateTime = () => {
+      let seconds = activeTimer.accumulatedSeconds || 0;
+      if (activeTimer.status !== 'paused' && activeTimer.startedAt) {
+        seconds += Math.floor((Date.now() - activeTimer.startedAt) / 1000);
+      }
+      
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      DOM.runningTimerTime.textContent = 
+        `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    };
+    
+    updateTime();
+    if (activeTimer.status !== 'paused') {
+      popupTimerInterval = setInterval(updateTime, 1000);
+    }
+  } else {
+    DOM.runningTimerSection.style.display = 'none';
+  }
+}
+
+/**
+ * Load recent time entries from storage and render them.
  */
 async function loadTimeEntries() {
   try {

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Araya Basecamp Extensions",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Track time on Basecamp tasks and sync to Google Sheets — Free alternative to Basecamp's premium Timesheet feature",
   "permissions": ["storage", "activeTab", "alarms"],
   "host_permissions": [
