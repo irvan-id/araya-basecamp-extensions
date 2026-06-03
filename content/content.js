@@ -88,6 +88,7 @@
       listenForTurboNavigation();
       restoreRunningTimer();
       ensureToastContainer();
+      initKeyboardShortcuts();
     } catch (err) {
       console.error('[BCTL] Init error:', err);
     }
@@ -969,6 +970,8 @@
         if (elapsed) elapsed.remove();
       }
     });
+
+    updateProjectTimerIndicator();
   }
 
   /** Mark a specific button as the active (running) timer button. */
@@ -1179,6 +1182,24 @@
     });
 
     wrapper.appendChild(btn);
+
+    const indicator = document.createElement('a');
+    indicator.className = 'bctl-project-timer-indicator';
+    indicator.style.display = 'none';
+    indicator.style.alignItems = 'center';
+    indicator.style.gap = '6px';
+    indicator.style.backgroundColor = 'rgba(234, 179, 8, 0.15)'; // Yellow transparent
+    indicator.style.color = '#a16207'; // Yellow dark
+    indicator.style.borderRadius = '6px';
+    indicator.style.padding = '0 10px';
+    indicator.style.height = '30px';
+    indicator.style.fontWeight = '500';
+    indicator.style.fontSize = '14px';
+    indicator.style.textDecoration = 'none';
+    indicator.innerHTML = '<span class="bctl-pulse">⏳</span> <span class="bctl-indicator-time"></span>';
+    
+    wrapper.appendChild(indicator);
+
     toolbarActions.insertBefore(wrapper, toolbarActions.firstChild);
 
     // Fetch the total hours for this project only if we need to display it
@@ -1386,6 +1407,42 @@
       // Update header with total
       if (response.totalHours !== undefined) {
         title.innerHTML = `<span class="bctl-modal-title-icon">⏱️</span> ${projectName} Timesheet &nbsp;<span class="bctl-badge bctl-badge--has-time" style="font-size:12px; height:24px; padding:0 8px">${response.totalHours}h total</span>`;
+      }
+    });
+  }
+
+  function updateProjectTimerIndicator() {
+    const indicator = document.querySelector('.bctl-project-timer-indicator');
+    if (!indicator) return;
+
+    if (activeTimer && activeTimer.projectName === getProjectName()) {
+      indicator.style.display = 'inline-flex';
+      indicator.href = activeTimer.pageUrl || activeTimer.taskUrl;
+      const timeSpan = indicator.querySelector('.bctl-indicator-time');
+      if (timeSpan) {
+        timeSpan.textContent = formatTime(getElapsedSeconds());
+      }
+      indicator.title = `Running: ${activeTimer.taskName}`;
+    } else {
+      indicator.style.display = 'none';
+    }
+  }
+
+  /* --------------------------------------------------------
+     12. Global Keyboard Shortcuts
+     -------------------------------------------------------- */
+  function initKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+      if (e.key.toLowerCase() === 't') {
+        const activeEl = document.activeElement;
+        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable)) {
+          return;
+        }
+        
+        const projectName = getProjectName();
+        if (projectName && projectName !== 'Unknown Project') {
+          openProjectModal();
+        }
       }
     });
   }

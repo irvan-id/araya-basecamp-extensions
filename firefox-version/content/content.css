@@ -999,3 +999,8 @@ html[data-theme="dark"] {
 .bctl-hidden {
   display: none !important;
 }
+
+.bctl-pulse {
+  animation: bctl-pulse 2s ease-in-out infinite;
+}
+
