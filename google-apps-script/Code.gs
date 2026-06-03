@@ -21,9 +21,11 @@ var HEADERS = [
   'Project',
   'Task',
   'Hours (decimal)',
+  'Durasi',
   'Notes',
   'Basecamp URL',
-  'Entry ID'
+  'Entry ID',
+  'Type'
 ];
 
 // ─── Web App Endpoints ──────────────────────────────────────────────
@@ -49,6 +51,11 @@ function doPost(e) {
       });
     }
 
+    // ── UPDATE existing entry ──
+    if (data.action === 'update_entry') {
+      return updateEntry(data);
+    }
+
     // Validate required fields
     if (!data.user || !data.project || !data.hours) {
       return buildJsonResponse({
@@ -66,6 +73,7 @@ function doPost(e) {
 
     // Parse the timestamp or use current time
     var timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+    var hours = parseFloat(data.hours) || 0;
 
     // Append the new row
     sheet.appendRow([
@@ -73,10 +81,12 @@ function doPost(e) {
       data.user || '',
       data.project || '',
       data.task || '',
-      parseFloat(data.hours) || 0,
+      hours,
+      formatDurasi(hours),
       data.notes || '',
       data.url || '',
-      entryId
+      entryId,
+      data.type || 'unknown'
     ]);
 
     // Format the newly added row
@@ -248,9 +258,11 @@ function ensureHeaders(sheet) {
     sheet.setColumnWidth(3, 200); // Project
     sheet.setColumnWidth(4, 200); // Task
     sheet.setColumnWidth(5, 120); // Hours
-    sheet.setColumnWidth(6, 250); // Notes
-    sheet.setColumnWidth(7, 300); // Basecamp URL
-    sheet.setColumnWidth(8, 280); // Entry ID
+    sheet.setColumnWidth(6, 120); // Durasi
+    sheet.setColumnWidth(7, 250); // Notes
+    sheet.setColumnWidth(8, 300); // Basecamp URL
+    sheet.setColumnWidth(9, 280); // Entry ID
+    sheet.setColumnWidth(10, 100); // Type
 
     // Set number format for Hours column
     sheet.getRange('E:E').setNumberFormat('0.00');
@@ -342,9 +354,11 @@ function getUserEntries(sheet, user, startDate, endDate) {
       project: row[2] || '',
       task: row[3] || '',
       hours: parseFloat(row[4]) || 0,
-      notes: row[5] || '',
-      url: row[6] || '',
-      entryId: row[7] || ''
+      duration: row[5] || '',
+      notes: row[6] || '',
+      url: row[7] || '',
+      id: row[8] || '',
+      type: row[9] || 'unknown'
     });
   }
 
@@ -403,9 +417,11 @@ function getProjectEntries(sheet, project, user, isAdmin, startDate, endDate) {
       project: rowProject,
       task: row[3] || '',
       hours: parseFloat(row[4]) || 0,
-      notes: row[5] || '',
-      url: row[6] || '',
-      entryId: row[7] || ''
+      duration: row[5] || '',
+      notes: row[6] || '',
+      url: row[7] || '',
+      id: row[8] || '',
+      type: row[9] || 'unknown'
     });
   }
 
@@ -466,6 +482,66 @@ function formatRow(sheet, row) {
 
   // Format Hours column (E) with 2 decimal places
   sheet.getRange(row, 5).setNumberFormat('0.00');
+}
+
+/**
+ * Convert decimal hours to "Xj Ym" format for the Durasi column.
+ *
+ * @param {number} decimalHours - Hours in decimal format.
+ * @returns {string} Formatted duration string.
+ */
+function formatDurasi(decimalHours) {
+  var totalMinutes = Math.round(decimalHours * 60);
+  var h = Math.floor(totalMinutes / 60);
+  var m = totalMinutes % 60;
+  if (h === 0) return m + 'm';
+  if (m === 0) return h + 'j';
+  return h + 'j ' + m + 'm';
+}
+
+/**
+ * Update an existing entry by its Entry ID.
+ *
+ * @param {Object} data - { entryId, hours?, notes?, task?, apiKey }
+ * @returns {TextOutput} JSON response.
+ */
+function updateEntry(data) {
+  var entryId = data.entryId;
+  if (!entryId) {
+    return buildJsonResponse({ status: 'error', message: 'Missing entryId' });
+  }
+
+  var sheet = getOrCreateSheet();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return buildJsonResponse({ status: 'error', message: 'No data rows found' });
+  }
+
+  // Entry ID is in column I (9)
+  var idRange = sheet.getRange(2, 9, lastRow - 1, 1).getValues();
+
+  for (var i = 0; i < idRange.length; i++) {
+    if (idRange[i][0] === entryId) {
+      var row = i + 2; // 1-indexed + header offset
+
+      if (data.task !== undefined) {
+        sheet.getRange(row, 4).setValue(data.task);  // Task = col D
+      }
+      if (data.hours !== undefined) {
+        var hours = parseFloat(data.hours) || 0;
+        sheet.getRange(row, 5).setValue(hours);             // Hours = col E
+        sheet.getRange(row, 6).setValue(formatDurasi(hours)); // Durasi = col F
+        sheet.getRange(row, 5).setNumberFormat('0.00');
+      }
+      if (data.notes !== undefined) {
+        sheet.getRange(row, 7).setValue(data.notes); // Notes = col G
+      }
+
+      return buildJsonResponse({ status: 'success', message: 'Entry updated' });
+    }
+  }
+
+  return buildJsonResponse({ status: 'error', message: 'Entry not found: ' + entryId });
 }
 
 /**
