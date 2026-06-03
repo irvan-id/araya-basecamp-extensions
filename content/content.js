@@ -29,12 +29,16 @@
 
   const DEBOUNCE_MS = 300;
 
-  /** Ordered list of selectors to try when locating to-do items. */
   const TODO_SELECTORS = [
     '.todo',
+    '.step', // Older Basecamp subtasks
+    '.step__item', // Basecamp 4 Subtasks
+    '.recordable--todo',
+    '.recordable--kanban-card', // Kanban Card Detail
+    '[data-drag-and-drop-type="kanban_card"]', // Kanban Card Board Wrapper
+    '.kanban-card', // Kanban Card Board View
+    '.card', // Generic Card
     '[data-behavior="todo_item"]',
-    '.recording--todo',
-    '.recording',
     '.todos .todo_name',
     '.checkbox--todo',
   ];
@@ -241,6 +245,13 @@
       try {
         document.querySelectorAll(sel).forEach((el) => {
           if (!seen.has(el)) {
+            // Ignore completed to-dos and subtasks
+            if (
+              el.closest('.completed') || 
+              el.classList.contains('completed') || 
+              el.classList.contains('step--completed')
+            ) return;
+            
             seen.add(el);
             results.push(el);
           }
@@ -259,6 +270,8 @@
         .forEach((cb) => {
           const li = cb.closest('li');
           if (li && !seen.has(li)) {
+            // Ignore completed to-dos
+            if (li.closest('.completed') || li.classList.contains('completed')) return;
             seen.add(li);
             results.push(li);
           }
@@ -303,13 +316,73 @@
       openModal(todoEl);
     });
 
-    // Append — try to put it after the label text
-    const textContainer =
-      todoEl.querySelector('.todo_name, .todo__name, label, a') || todoEl;
-    if (textContainer !== todoEl && textContainer.parentNode === todoEl) {
-      textContainer.after(btn);
+    // 1. Detail View Main To-do Header
+    const permaFlex = todoEl.querySelector('.perma-header__content .flex.items-center');
+    if (permaFlex) {
+      permaFlex.appendChild(btn);
+      return;
+    }
+
+    // 1.1 Detail View Kanban Card Header
+    const permaTitle = todoEl.querySelector('.perma-header__title');
+    if (permaTitle && todoEl.classList.contains('recordable--kanban-card')) {
+      permaTitle.style.display = 'flex';
+      permaTitle.style.alignItems = 'center';
+      permaTitle.style.gap = '12px';
+      permaTitle.appendChild(btn);
+      return;
+    }
+
+    // 2. Subtasks (Steps)
+    if (todoEl.classList.contains('step') || todoEl.classList.contains('step__item')) {
+      const taskDetails = todoEl.querySelector('.task-details');
+      if (taskDetails) {
+        taskDetails.appendChild(btn);
+      } else {
+        const stepContent = todoEl.querySelector('.step__content, .step__text-container') || todoEl;
+        if (stepContent !== todoEl) {
+          stepContent.appendChild(btn);
+        } else {
+          todoEl.appendChild(btn);
+        }
+      }
+      return;
+    }
+
+    // 3. Kanban Card on Board View
+    if (
+      todoEl.matches('[data-drag-and-drop-type="kanban_card"]') ||
+      todoEl.classList.contains('kanban-card') ||
+      todoEl.classList.contains('card')
+    ) {
+      // Find a good place to mount the button inside the card
+      const targetContainer = todoEl.querySelector('.kanban-card__title, .card__title, .title, .card__content, .card__header') || todoEl.firstElementChild || todoEl;
+      
+      // Force it to float or sit on the right
+      btn.style.marginLeft = '8px';
+      btn.style.zIndex = '10';
+      
+      if (targetContainer !== todoEl) {
+        targetContainer.appendChild(btn);
+      } else {
+        todoEl.appendChild(btn);
+      }
+      return;
+    }
+
+    // 4. Regular To-Do list item
+    // Append — try to put it at the end of the task-details container so it aligns to the right
+    const taskDetails = todoEl.querySelector('.task-details');
+    if (taskDetails) {
+      taskDetails.appendChild(btn);
     } else {
-      todoEl.appendChild(btn);
+      const textContainer =
+        todoEl.querySelector('.checkbox__content, .todo__content, .todo_name, .todo__name') || todoEl;
+      if (textContainer !== todoEl) {
+        textContainer.appendChild(btn);
+      } else {
+        todoEl.appendChild(btn);
+      }
     }
   }
 
@@ -329,7 +402,13 @@
    * Extract the project name from breadcrumbs, headers or title.
    */
   function getProjectName() {
-    // Breadcrumb selectors used by Basecamp 3/4
+    // 1. Check meta tags (Basecamp often provides the exact name here)
+    const metaBucket = document.querySelector('meta[name="current-bucket-name"]');
+    if (metaBucket && metaBucket.getAttribute('content')) {
+      return metaBucket.getAttribute('content').trim();
+    }
+
+    // 2. Breadcrumb selectors used by Basecamp 3/4
     const breadcrumbSelectors = [
       '.breadcrumb a',
       '.breadcrumbs a',
@@ -343,8 +422,18 @@
     for (const sel of breadcrumbSelectors) {
       try {
         const el = document.querySelector(sel);
-        if (el && el.textContent.trim()) {
-          return el.textContent.trim();
+        if (el) {
+          if (el.hasAttribute('title')) {
+            return el.getAttribute('title').trim();
+          }
+          const strongEl = el.querySelector('strong');
+          if (strongEl && strongEl.textContent.trim()) {
+            return strongEl.textContent.trim();
+          }
+          if (el.textContent.trim()) {
+            // strip out known keyboard shortcuts if they exist at the end
+            return el.textContent.replace(/\s*G\s*$/, '').trim();
+          }
         }
       } catch (_) {}
     }
@@ -361,9 +450,18 @@
    * Get the text content (name) of a to-do item.
    */
   function getTaskName(todoEl) {
-    // Prefer the inner label / link text
+    // First try the aria-label from the checkbox (Basecamp often stores the clean title here)
+    const checkbox = todoEl.querySelector('input[type="checkbox"]');
+    if (checkbox && checkbox.getAttribute('aria-label')) {
+      const label = checkbox.getAttribute('aria-label').trim();
+      if (label && label !== 'Mark as complete' && label !== 'Unmark as complete') {
+        return label.length > 200 ? label.slice(0, 200) + '…' : label;
+      }
+    }
+
+    // Fallback to text element
     const textEl = todoEl.querySelector(
-      '.todo_name, .todo__name, .todo__content, label, a'
+      '.todo__content > a, .todo_name, .todo__name, .checkbox__text, .step__text, .step__title, .perma-header__title > a, .kanban-card__title, .card__title, a[href*="/card_tables/cards/"]'
     );
     const raw = textEl
       ? textEl.textContent.trim()
