@@ -230,8 +230,11 @@
     const todos = findTodoElements();
     todos.forEach((todoEl) => {
       try {
-        if (todoEl.querySelector('.bctl-timer-btn')) return; // already injected
-        injectTimerButton(todoEl);
+        if (todoEl.dataset.bctlInjected === 'true') return; // already injected
+        const injected = injectTimerButton(todoEl);
+        if (injected) {
+          todoEl.dataset.bctlInjected = 'true';
+        }
       } catch (err) {
         console.warn('[BCTL] Button injection error:', err);
       }
@@ -330,15 +333,17 @@
           permaTitle.style.alignItems = 'center';
           permaTitle.style.gap = '12px';
           permaTitle.appendChild(btn);
+          return true; // Successfully injected
         }
-        return; // Always return so we don't fall back to standard logic
+        return false; // Did not inject yet, turbo frame is loading
       }
       
       const permaFlex = todoEl.querySelector('.perma-header__content .flex.items-center');
       if (permaFlex) {
         permaFlex.appendChild(btn);
+        return true;
       }
-      return; // Always return so we don't fall back to standard logic
+      return false; // Did not inject yet
     }
 
     // 2. Subtasks (Steps)
@@ -354,7 +359,7 @@
           todoEl.appendChild(btn);
         }
       }
-      return;
+      return true;
     }
 
     // 3. Kanban Card on Board View
@@ -375,7 +380,7 @@
       } else {
         todoEl.appendChild(btn);
       }
-      return;
+      return true;
     }
 
     // 4. Regular To-Do list item
@@ -392,6 +397,7 @@
         todoEl.appendChild(btn);
       }
     }
+    return true;
   }
 
   /** Create a small hours badge element. */
@@ -471,9 +477,20 @@
     const textEl = todoEl.querySelector(
       '.todo__content > a, .todo_name, .todo__name, .checkbox__text, .step__text, .step__title, .perma-header__title > a, .kanban-card__title, .card__title, a[href*="/card_tables/cards/"]'
     );
-    const raw = textEl
-      ? textEl.textContent.trim()
-      : todoEl.textContent.trim();
+    
+    let raw = '';
+    if (textEl) {
+      const clone = textEl.cloneNode(true);
+      const injectedBtns = clone.querySelectorAll('.bctl-timer-btn');
+      injectedBtns.forEach(b => b.remove());
+      raw = clone.textContent.trim();
+    } else {
+      const clone = todoEl.cloneNode(true);
+      const injectedBtns = clone.querySelectorAll('.bctl-timer-btn');
+      injectedBtns.forEach(b => b.remove());
+      raw = clone.textContent.trim();
+    }
+    
     // Truncate if excessively long
     return raw.length > 200 ? raw.slice(0, 200) + '…' : raw;
   }
@@ -1143,8 +1160,8 @@
     btn.style.display = 'flex';
     btn.style.alignItems = 'center';
     btn.style.gap = '6px';
-    btn.style.backgroundColor = '#f3f4f6'; // Match the notification button
-    btn.style.color = '#374151';
+    btn.style.backgroundColor = 'rgba(16, 185, 129, 0.15)'; // Teal / Green transparent
+    btn.style.color = '#047857'; // Teal dark
     btn.style.border = 'none';
     btn.style.borderRadius = '6px';
     btn.style.padding = '0 10px';
@@ -1152,7 +1169,14 @@
     btn.style.fontWeight = '500';
     btn.style.fontSize = '14px';
 
-    btn.innerHTML = '<span>⏱️</span> Timesheet <span class="bctl-project-total-hours" style="color: #6b7280; font-weight: 400; margin-left: 2px;">...</span>';
+    const pageTypeMeta = document.querySelector('meta[name="current-page-type"]');
+    const isMainProjectPage = pageTypeMeta && pageTypeMeta.content === 'project';
+
+    if (isMainProjectPage) {
+      btn.innerHTML = '<span>⏱️</span> Timesheet <span class="bctl-project-total-hours" style="color: #047857; font-weight: 400; margin-left: 2px;">...</span>';
+    } else {
+      btn.innerHTML = '<span>⏱️</span> Timesheet';
+    }
     
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -1162,24 +1186,26 @@
     wrapper.appendChild(btn);
     toolbarActions.insertBefore(wrapper, toolbarActions.firstChild);
 
-    // Fetch the total hours for this project
-    chrome.runtime.sendMessage({
-      type: 'GET_PROJECT_ENTRIES',
-      payload: {
-        project: getProjectName(),
-        user: currentUserName,
-        isAdmin: currentIsAdmin
-      }
-    }, (response) => {
-      const hoursSpan = btn.querySelector('.bctl-project-total-hours');
-      if (hoursSpan) {
-        if (response && response.success && response.totalHours !== undefined) {
-          hoursSpan.textContent = `${parseFloat(response.totalHours.toFixed(2))}h`;
-        } else {
-          hoursSpan.textContent = `0h`;
+    // Fetch the total hours for this project only if we need to display it
+    if (isMainProjectPage) {
+      chrome.runtime.sendMessage({
+        type: 'GET_PROJECT_ENTRIES',
+        payload: {
+          project: getProjectName(),
+          user: currentUserName,
+          isAdmin: currentIsAdmin
         }
-      }
-    });
+      }, (response) => {
+        const hoursSpan = btn.querySelector('.bctl-project-total-hours');
+        if (hoursSpan) {
+          if (response && response.success && response.totalHours !== undefined) {
+            hoursSpan.textContent = `${parseFloat(response.totalHours.toFixed(2))}h`;
+          } else {
+            hoursSpan.textContent = `0h`;
+          }
+        }
+      });
+    }
   }
 
   function openProjectModal() {
