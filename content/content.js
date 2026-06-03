@@ -265,12 +265,16 @@
       try {
         document.querySelectorAll(sel).forEach((el) => {
           if (!seen.has(el)) {
-            // Ignore completed to-dos and subtasks
             if (
               el.closest('.completed') || 
               el.classList.contains('completed') || 
               el.classList.contains('step--completed')
             ) return;
+
+            // Ignore completion checkboxes that belong to the detail view itself (prevent double injection)
+            if (el.classList.contains('checkbox--todo') && el.closest('.recordable--todo')) {
+              return;
+            }
             
             seen.add(el);
             results.push(el);
@@ -345,22 +349,14 @@
 
     // 1. Detail View Main To-do Header or Kanban Card
     if (todoEl.classList.contains('recordable--todo') || todoEl.classList.contains('recordable--kanban-card')) {
-      if (todoEl.classList.contains('recordable--kanban-card')) {
-        const permaTitle = todoEl.querySelector('.perma-header__title');
-        if (permaTitle) {
-          permaTitle.style.display = 'flex';
-          permaTitle.style.alignItems = 'center';
-          permaTitle.style.gap = '12px';
-          return appendBtn(permaTitle);
-        }
-        return false; // Did not inject yet, turbo frame is loading
+      const permaTitle = todoEl.querySelector('.perma-header__title');
+      if (permaTitle) {
+        permaTitle.style.display = 'flex';
+        permaTitle.style.alignItems = 'center';
+        permaTitle.style.gap = '12px';
+        return appendBtn(permaTitle);
       }
-      
-      const permaFlex = todoEl.querySelector('.perma-header__content .flex.items-center');
-      if (permaFlex) {
-        return appendBtn(permaFlex);
-      }
-      return false; // Did not inject yet
+      return false; // Did not inject yet, turbo frame is loading
     }
 
     // 2. Subtasks (Steps)
