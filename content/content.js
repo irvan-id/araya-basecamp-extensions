@@ -1538,11 +1538,12 @@
         });
         
         // Total row
+        const formattedTotal = response.totalHours ? parseFloat(Number(response.totalHours).toFixed(2)) : 0;
         const totalTr = document.createElement('tr');
         totalTr.style.background = 'var(--bctl-surface-alt)';
         totalTr.innerHTML = `
           <td colspan="4" style="text-align:right; text-transform:uppercase; font-size:11px; font-weight:700; color:var(--bctl-text-secondary);">Total (Current Month)</td>
-          <td style="font-size:15px; font-weight:700; color:var(--bctl-green-700);">${response.totalHours || 0}h</td>
+          <td style="font-size:15px; font-weight:700; color:var(--bctl-green-700);">${formattedTotal}h</td>
         `;
         tbody.appendChild(totalTr);
       } else {
@@ -1556,7 +1557,8 @@
       
       // Update header with total
       if (response.totalHours !== undefined) {
-        title.innerHTML = `<span class="bctl-modal-title-icon">⏱️</span> ${projectName} Timesheet &nbsp;<span class="bctl-badge bctl-badge--has-time" style="font-size:12px; height:24px; padding:0 8px">${response.totalHours}h total</span>`;
+        const formattedTotal = parseFloat(Number(response.totalHours).toFixed(2));
+        title.innerHTML = `<span class="bctl-modal-title-icon">⏱️</span> ${projectName} Timesheet &nbsp;<span class="bctl-badge bctl-badge--has-time" style="font-size:12px; height:24px; padding:0 8px">${formattedTotal}h total</span>`;
       }
     });
   }
