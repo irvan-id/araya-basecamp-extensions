@@ -70,7 +70,7 @@
   let activeTimer = null;
 
   /** Remember the last selected tab mode ('manual' or 'timer') */
-  let lastSelectedMode = 'manual';
+  let lastSelectedMode = 'timer';
 
   /** Interval id for the running stopwatch UI update. */
   let timerIntervalId = null;
